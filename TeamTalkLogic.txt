@@ -1,0 +1,151 @@
+1.客户端发送msg_server心跳包:
+
+             (1)请求报文
+ ----------    ----->     --------------
+ | 客户端 |               | msg_server |
+ ----------    <-----     --------------
+             (2)应答报文
+
+(1)客户端发送心跳包请求报文(CommandId:CID_OTHER_HEARTBEAT)到msg_server.
+(2)msg_server解析请求报文,执行_HandleHeartBeat()处理心跳包请求,并将原报文直接应答给客户端.
+
+注:(2)_HandleHeartBeat(): TeamTalk/server/src/msg_server/MsgConn.cpp
+
+
+////////////////
+2.客户端登录验证流程:
+
+             (1)请求报文                   (2)请求报文
+ ----------    ----->     --------------     ----->     -------------------
+ | 客户端 |               | msg_server |                | db_proxy_server |
+ ----------    <-----     --------------     <-----     -------------------
+             (5)应答报文        |          (3)应答报文
+                               \|/(4)请求报文
+                         ----------------
+                         | route_server |  广播其余msg_server
+                         ----------------  踢除客户端已重复登录用户
+                        /       |        \  
+          --------------  --------------  -------------- 
+          | msg_server |  | msg_server |  | msg_server |
+          --------------  --------------  --------------
+
+(1)客户端发送登录验证请求报文(CommandId:CID_LOGIN_REQ_USERLOGIN)到msg_server.
+(2)msg_server解析请求报文,执行_HandleLoginRequest()处理登录请求,
+   将用户名和密码组成请求报文(CommandId:CID_OTHER_VALIDATE_REQ)发送到db_proxy_server.
+(3)db_proxy_server解析请求报文,执行doLogin()进行登录验证,
+   用户名和密码验证成功,则取出数据库中用户详细信息组成应答报文(CommandId:CID_OTHER_VALIDATE_RSP)发送到msg_server.
+(4)msg_server解析应答报文,执行_HandleValidateResponse()将用户id组成请求报文(CommandId:CID_OTHER_SERVER_KICK_USER),
+   发送到route_server,route_server解析后执行_BroadcastMsg()广播到其余msg_server,
+   其余msg_server则会执行_HandleKickUser()会踢除客户端已重复登录用户,
+   如果踢除成功,则组织应答报文(CommandId:CID_LOGIN_KICK_USER)应答到客户端.
+(5)msg_server同时组成应答报文(CommandId:CID_LOGIN_RES_USERLOGIN),应答给客户端完成登录验证.
+
+注:(2)_HandleLoginRequest(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (3)doLogin(): TeamTalk/server/src/db_proxy_server/business/Login.cpp
+   (4)_HandleValidateResponse(): TeamTalk/server/src/msg_server/DBServConn.cpp
+   (4)_BroadcastMsg(): TeamTalk/server/src/route_server/RouteConn.cpp
+   (4)_HandleKickUser(): TeamTalk/server/src/msg_server/RouteServConn.cpp
+
+
+////////////////
+3.客户端登出:
+
+             (1)请求报文                   (2)请求报文
+ ----------    ----->     --------------     ----->     -------------------
+ | 客户端 |               | msg_server |                | db_proxy_server |
+ ----------    --X--      --------------     <-----     -------------------
+             (4)不应答                     (3)应答报文
+             
+(1)客户端发送登出请求报文(CommandId:CID_LOGIN_REQ_LOGINOUT)到msg_server.
+(2)msg_server解析请求报文,执行_HandleLoginOutRequest()处理登出请求,
+   将设备标识符设置为空字符串,组成请求报文(CommandId:CID_LOGIN_REQ_DEVICETOKEN)发送到db_proxy_server,
+   msg_server调用Close()函数,关闭连接套接字,断开连接.
+(3)db_proxy_server解析请求报文,执行setDevicesToken()将redis中保存的设备标识符设置为空,
+   用户id组成应答报文(CommandId:CID_LOGIN_RES_DEVICETOKEN)发送到msg_server.
+(4)msg_server解析应答报文,执行_HandleSetDeviceTokenResponse(),只打印日志信息不应答给客户端.
+
+注:(2)_HandleLoginOutRequest(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (2)Close(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (3)setDevicesToken(): TeamTalk/server/src/db_proxy_server/business/MessageCounter.cpp
+   (4)_HandleSetDeviceTokenResponse(): TeamTalk/server/src/msg_server/DBServConn.cpp
+
+
+////////////////
+4.客户端踢除PC端已登录的用户连接
+
+             (1)请求报文
+ ----------    ----->     --------------
+ | 客户端 |    <-----     | msg_server |
+ ----------    <-----     --------------
+             (2)应答报文        |
+             (4)应答报文       \|/(3)请求报文
+                         ----------------
+                         | route_server |  广播其余msg_server
+                         ----------------  踢除客户端已重复登录用户
+                        /       |        \  
+          --------------  --------------  -------------- 
+          | msg_server |  | msg_server |  | msg_server |
+          --------------  --------------  --------------
+
+(1)客户端发送请求报文(CommandId:CID_LOGIN_REQ_KICKPCCLIENT)到msg_server.
+(2)msg_server解析请求报文,执行_HandleKickPCClient()处理请求报文,
+   先执行KickOutSameClientType()踢除当前msg_server上PC端连接,
+   如果踢除成功,则组织应答报文(CommandId:CID_LOGIN_KICK_USER)应答到客户端.
+(3)msg_server组织请求报文(CommandId:CID_OTHER_SERVER_KICK_USER)发送到route_server,
+   route_server解析后执行_BroadcastMsg()广播到其余msg_server,
+   其余msg_server则会执行_HandleKickUser()会踢除客户端已重复登录用户,
+   如果踢除成功,则组织应答报文(CommandId:CID_LOGIN_KICK_USER)应答到客户端.
+(4)msg_server组织应答报文(CommandId:CID_LOGIN_RES_KICKPCCLIENT),返回给客户端.
+
+注:(2)_HandleKickPCClient(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (2)KickOutSameClientType(): TeamTalk/server/src/msg_server/ImUser.cpp
+   (3)_BroadcastMsg(): TeamTalk/server/src/route_server/RouteConn.cpp
+   (3)_HandleKickUser(): TeamTalk/server/src/msg_server/RouteServConn.cpp
+
+
+////////////////
+5.客户端获取最近联系会话列表:
+
+             (1)请求报文                   (2)请求报文
+ ----------    ----->     --------------     ----->     -------------------
+ | 客户端 |               | msg_server |                | db_proxy_server |
+ ----------    <----      --------------     <-----     -------------------
+             (4)应答报文                   (3)应答报文
+
+(1)客户端发送请求报文(CommandId:CID_BUDDY_LIST_RECENT_CONTACT_SESSION_REQUEST)到msg_server.
+(2)msg_server解析请求报文,执行_HandleClientRecentContactSessionRequest()处理请求报文,并转发到db_proxy_server.
+(3)db_proxy_server解析请求报文,执行getRecentSession()获取最近联系人列表,
+   组织成应答报文(CommandId:CID_BUDDY_LIST_RECENT_CONTACT_SESSION_RESPONSE)并应答给msg_server.
+(4)msg_server将解析应答报文,执行_HandleRecentSessionResponse()应答客户端.
+
+注:(2)_HandleClientRecentContactSessionRequest(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (3)getRecentSession(): TeamTalk/server/src/db_proxy_server/business/RecentSession.cpp
+   (4)_HandleRecentSessionResponse(): TeamTalk/server/src/msg_server/DBServConn.cpp
+
+
+////////////////
+6.客户端获取好友列表:
+
+             (1)请求报文                   (2)请求报文
+ ----------    ----->     --------------     ----->     -------------------
+ | 客户端 |               | msg_server |                | db_proxy_server |
+ ----------    <----      --------------     <-----     -------------------
+             (4)应答报文                   (3)应答报文
+
+(1)客户端发送请求报文(CommandId:CID_BUDDY_LIST_USER_INFO_REQUEST)到msg_server.
+(2)msg_server解析请求报文,执行_HandleClientUserInfoRequest()处理请求报文,并转发到db_proxy_server.
+(3)db_proxy_server解析请求报文,执行_HandleUsersInfoResponse()获取好友列表信息,
+   组织成应答报文(CommandId:CID_BUDDY_LIST_USER_INFO_RESPONSE)发送到msg_server.
+(4)msg_server解析应答报文,执行_HandleUsersInfoResponse()继续应答给客户端.
+
+注:(2)_HandleClientUserInfoRequest(): TeamTalk/server/src/msg_server/MsgConn.cpp
+   (3)_HandleUsersInfoResponse(): TeamTalk/server/src/db_proxy_server/business/UserAction.cpp
+   (4)_HandleUsersInfoResponse(): TeamTalk/server/src/msg_server/DBServConn.cpp
+
+
+////////////////
+7.客户端移除会话:
+CID_BUDDY_LIST_REMOVE_SESSION_REQ
+_HandleClientRemoveSessionRequest
+
+

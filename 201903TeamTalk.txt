@@ -271,115 +271,115 @@ extern "C" {
  * redisAsyncContext 前置声明, 该异步数据结构在下文中有定义.
  * dict 是Redis字典数据结构.
  */
-struct redisAsyncContext; /* need forward declaration of redisAsyncContext */
-struct dict; /* dictionary header is included in async.c */
+  struct redisAsyncContext; /* need forward declaration of redisAsyncContext */
+  struct dict; /* dictionary header is included in async.c */
 
-/* Reply callback prototype and container */
-/* redisCallbackFn是回调函数原型 */
-typedef void (redisCallbackFn)(struct redisAsyncContext*, void*, void*);
+  /* Reply callback prototype and container */
+  /* redisCallbackFn是回调函数原型 */
+  typedef void (redisCallbackFn)(struct redisAsyncContext*, void*, void*);
 
-/* redisCallback是redisCallbackList -  Redis回调函数链表的结点 */
-typedef struct redisCallback {
-  struct redisCallback *next; /* simple singly linked list */
-  redisCallbackFn *fn;
-  void *privdata;
-} redisCallback;
+  /* redisCallback是redisCallbackList -  Redis回调函数链表的结点 */
+  typedef struct redisCallback {
+    struct redisCallback *next; /* simple singly linked list */
+    redisCallbackFn *fn;
+    void *privdata;
+  } redisCallback;
 
-/* List of callbacks for either regular replies or pub/sub */
-/* redisCallbackList是回调函数链表 */
-typedef struct redisCallbackList {
-  redisCallback *head, *tail;
-} redisCallbackList;
+  /* List of callbacks for either regular replies or pub/sub */
+  /* redisCallbackList是回调函数链表 */
+  typedef struct redisCallbackList {
+    redisCallback *head, *tail;
+  } redisCallbackList;
 
-/* Connection callback prototypes */
-/* redis连接回调和断开连接回调函数原型 */
-typedef void (redisDisconnectCallback)(const struct redisAsyncContext*, int status);
-typedef void (redisConnectCallback)(const struct redisAsyncContext*, int status);
+  /* Connection callback prototypes */
+  /* redis连接回调和断开连接回调函数原型 */
+  typedef void (redisDisconnectCallback)(const struct redisAsyncContext*, int status);
+  typedef void (redisConnectCallback)(const struct redisAsyncContext*, int status);
 
-/* Context for an async connection to Redis */
-/* 异步连接Redis的 "Redis连接信息" 结构体 */
-typedef struct redisAsyncContext {
-  /* Hold the regular context, so it can be realloc'ed. */
-  /* c 是Redis连接套接字 */
-  redisContext c;
+  /* Context for an async connection to Redis */
+  /* 异步连接Redis的 "Redis连接信息" 结构体 */
+  typedef struct redisAsyncContext {
+    /* Hold the regular context, so it can be realloc'ed. */
+    /* c 是Redis连接套接字 */
+    redisContext c;
 
-  /* Setup error flags so they can be used directly. */
-  int err;
-  char *errstr;
+    /* Setup error flags so they can be used directly. */
+    int err;
+    char *errstr;
 
-  /* Not used by hiredis */
-  void *data;
-
-  /* Event library data and hooks */
-  /* 事件数据和钩子函数 */
-  /* 插入删除读写事件 和 cleanup清理事件*/
-  struct {
+    /* Not used by hiredis */
     void *data;
 
-    /* Hooks that are called when the library expects to start
-     * reading/writing. These functions should be idempotent.
-     */
-    void (*addRead)(void *privdata);
-    void (*delRead)(void *privdata);
-    void (*addWrite)(void *privdata);
-    void (*delWrite)(void *privdata);
-    void (*cleanup)(void *privdata);
-  } ev;
+    /* Event library data and hooks */
+    /* 事件数据和钩子函数 */
+    /* 插入删除读写事件 和 cleanup清理事件*/
+    struct {
+      void *data;
 
-  /* Called when either the connection is terminated due to an error or per
-   * user request. The status is set accordingly (REDIS_OK, REDIS_ERR). */
-  /* Redis断开连接回调函数指针 */
-  redisDisconnectCallback *onDisconnect;
+      /* Hooks that are called when the library expects to start
+       * reading/writing. These functions should be idempotent.
+       */
+      void (*addRead)(void *privdata);
+      void (*delRead)(void *privdata);
+      void (*addWrite)(void *privdata);
+      void (*delWrite)(void *privdata);
+      void (*cleanup)(void *privdata);
+    } ev;
 
-  /* Called when the first write event was received. */
-  /* Redis建立连接回调函数指针 */
-  redisConnectCallback *onConnect;
+    /* Called when either the connection is terminated due to an error or per
+     * user request. The status is set accordingly (REDIS_OK, REDIS_ERR). */
+    /* Redis断开连接回调函数指针 */
+    redisDisconnectCallback *onDisconnect;
 
-  /* Regular command callbacks */
-  /* Redis 回调函数链表 */
-  redisCallbackList replies;
+    /* Called when the first write event was received. */
+    /* Redis建立连接回调函数指针 */
+    redisConnectCallback *onConnect;
 
-  /* Subscription callbacks */
-  /* 消息订阅 */
-  struct {
-    redisCallbackList invalid;
-    struct dict *channels;
-    struct dict *patterns;
-  } sub;
-} redisAsyncContext;
+    /* Regular command callbacks */
+    /* Redis 回调函数链表 */
+    redisCallbackList replies;
 
-/* Functions that proxy to hiredis.
- * hiredis客户端API接口.
- * redisAsyncConnect 连接Redis.
- * redisAsyncConnectBind 绑定地址-连接Redis.
- * redisAsyncConnectBindWithReuse 绑定地址并端口复用-连接Redis.
- * redisAsyncConnectUnix 连接Unix.
- * redisAsyncSetConnectCallback 设置Redis建立连接回调函数.
- * redisAsyncSetDisconnectCallback 设置Redis断开连接回调函数.
- * redisAsyncDisconnect 断开连接.
- * redisAsyncFree 释放内存
- */
-redisAsyncContext *redisAsyncConnect(const char *ip, int port);
-redisAsyncContext *redisAsyncConnectBind(const char *ip, int port, const char *source_addr);
-redisAsyncContext *redisAsyncConnectBindWithReuse(const char *ip, int port, const char *source_addr);
-redisAsyncContext *redisAsyncConnectUnix(const char *path);
-int redisAsyncSetConnectCallback(redisAsyncContext *ac, redisConnectCallback *fn);
-int redisAsyncSetDisconnectCallback(redisAsyncContext *ac, redisDisconnectCallback *fn);
-void redisAsyncDisconnect(redisAsyncContext *ac);
-void redisAsyncFree(redisAsyncContext *ac);
+    /* Subscription callbacks */
+    /* 消息订阅 */
+    struct {
+      redisCallbackList invalid;
+      struct dict *channels;
+      struct dict *patterns;
+    } sub;
+  } redisAsyncContext;
 
-/* Handle read/write events */
-/* hiredis客户端执行读写事件 */
-void redisAsyncHandleRead(redisAsyncContext *ac);
-void redisAsyncHandleWrite(redisAsyncContext *ac);
+  /* Functions that proxy to hiredis.
+   * hiredis客户端API接口.
+   * redisAsyncConnect 连接Redis.
+   * redisAsyncConnectBind 绑定地址-连接Redis.
+   * redisAsyncConnectBindWithReuse 绑定地址并端口复用-连接Redis.
+   * redisAsyncConnectUnix 连接Unix.
+   * redisAsyncSetConnectCallback 设置Redis建立连接回调函数.
+   * redisAsyncSetDisconnectCallback 设置Redis断开连接回调函数.
+   * redisAsyncDisconnect 断开连接.
+   * redisAsyncFree 释放内存
+   */
+  redisAsyncContext *redisAsyncConnect(const char *ip, int port);
+  redisAsyncContext *redisAsyncConnectBind(const char *ip, int port, const char *source_addr);
+  redisAsyncContext *redisAsyncConnectBindWithReuse(const char *ip, int port, const char *source_addr);
+  redisAsyncContext *redisAsyncConnectUnix(const char *path);
+  int redisAsyncSetConnectCallback(redisAsyncContext *ac, redisConnectCallback *fn);
+  int redisAsyncSetDisconnectCallback(redisAsyncContext *ac, redisDisconnectCallback *fn);
+  void redisAsyncDisconnect(redisAsyncContext *ac);
+  void redisAsyncFree(redisAsyncContext *ac);
 
-/* Command functions for an async context. Write the command to the
- * output buffer and register the provided callback. */
-/* hiredis客户端写入命令注册回调函数 */
-int redisvAsyncCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *format, va_list ap);
-int redisAsyncCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *format, ...);
-int redisAsyncCommandArgv(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, int argc, const char **argv, const size_t *argvlen);
-int redisAsyncFormattedCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *cmd, size_t len);
+  /* Handle read/write events */
+  /* hiredis客户端执行读写事件 */
+  void redisAsyncHandleRead(redisAsyncContext *ac);
+  void redisAsyncHandleWrite(redisAsyncContext *ac);
+
+  /* Command functions for an async context. Write the command to the
+   * output buffer and register the provided callback. */
+  /* hiredis客户端写入命令注册回调函数 */
+  int redisvAsyncCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *format, va_list ap);
+  int redisAsyncCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *format, ...);
+  int redisAsyncCommandArgv(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, int argc, const char **argv, const size_t *argvlen);
+  int redisAsyncFormattedCommand(redisAsyncContext *ac, redisCallbackFn *fn, void *privdata, const char *cmd, size_t len);
 
 #ifdef __cplusplus
 }
@@ -395,7 +395,7 @@ int redisAsyncFormattedCommand(redisAsyncContext *ac, redisCallbackFn *fn, void 
 #include "ThreadPool.h"
 #include <mysql.h>
 
-#define MAX_ESCAPE_STRING_LEN	10240
+#define MAX_ESCAPE_STRING_LEN 10240
 
 /* MySql数据结构
  * MYSQL - This structure represents handler for one database connection.
@@ -429,7 +429,7 @@ int redisAsyncFormattedCommand(redisAsyncContext *ac, redisCallbackFn *fn, void 
  * 同理为了获取返回结果, 需要设置MYSQL_BIND数据结构并且传参至mysql_stmt_bind_result().
  */
  
-/* CResultSet - MYSQL资源对象,保存MYSQL查询语句的执行结果集 */
+/* 保存MYSQL查询语句的执行结果集 */
 class CResultSet {
 public:
   CResultSet(MYSQL_RES* res);
@@ -441,12 +441,12 @@ public:
 private:
   int _GetIndex(const char* key);
 
-  MYSQL_RES*  m_res;
-  MYSQL_ROW   m_row;
+  MYSQL_RES* m_res;  /* m_res 保存MYSQL查询语句的执行结果集 */
+  MYSQL_ROW  m_row;
   map<string, int> m_key_map;
 };
 
-/* CPrepareStatement - SQL语句预处理对象 */
+/* SQL语句预处理 */
 class CPrepareStatement {
 public:
   CPrepareStatement();
@@ -463,14 +463,14 @@ public:
   CResultSet* ExecuteQuery();
   uint32_t GetInsertId();
 private:
-  MYSQL_STMT* m_stmt;
+  MYSQL_STMT* m_stmt;  //! m_stmt sql预处理句柄,类似mysql句柄
   MYSQL_BIND* m_param_bind;
   uint32_t    m_param_cnt;
 };
 
 class CDBPool;
 
-/* 数据库连接对象 */
+/* 数据库连接 */
 class CDBConn {
 public:
   CDBConn(CDBPool* pDBPool);
@@ -486,12 +486,11 @@ public:
   const char* GetPoolName();
   MYSQL* GetMysql() { return m_mysql; }
 private:
-  CDBPool*  m_pDBPool;	// to get MySQL server information
-  MYSQL*    m_mysql;
+  CDBPool* m_pDBPool; //! to get MySQL server information
+  MYSQL*   m_mysql;
   //MYSQL_RES* m_res;
-  char      m_escape_string[MAX_ESCAPE_STRING_LEN + 1];
+  char     m_escape_string[MAX_ESCAPE_STRING_LEN + 1];
 };
-
 
 /* 数据库连接池 */
 class CDBPool {
@@ -511,14 +510,14 @@ public:
   const char* GetPasswrod() { return m_password.c_str(); }
   const char* GetDBName() { return m_db_name.c_str(); }
 private:
-  string    m_pool_name;
-  string    m_db_server_ip;
-  uint16_t  m_db_server_port;
-  string    m_username;
-  string    m_password;
-  string    m_db_name;
-  int       m_db_cur_conn_cnt;
-  int       m_db_max_conn_cnt;
+  string   m_pool_name;
+  string   m_db_server_ip;
+  uint16_t m_db_server_port;
+  string   m_username;
+  string   m_password;
+  string   m_db_name;
+  int      m_db_cur_conn_cnt;
+  int      m_db_max_conn_cnt;
   list<CDBConn*> m_free_list;
   CThreadNotify  m_free_notify;
 };
@@ -529,9 +528,8 @@ class CDBManager {
 public:
   virtual ~CDBManager();
 
-  static CDBManager* getInstance();
-
   int Init();
+  static CDBManager* getInstance();
 
   CDBConn* GetDBConn(const char* dbpool_name);
   void RelDBConn(CDBConn* pConn);
@@ -549,12 +547,12 @@ private:
 #include "DBPool.h"
 #include "ConfigFileReader.h"
 
-#define MIN_DB_CONN_CNT		2
+#define MIN_DB_CONN_CNT 2
 
 CDBManager* CDBManager::s_db_manager = NULL;
 
-/* CResultSet 构造函数,构造MYSQL资源对象(即MYSQL的查询执行结果)
- * mysql_num_fields() 函数返回结果集中字段的数.
+/* CResultSet构造函数,保存MYSQL查询结果集.
+ * mysql_num_fields() 返回结果集中字段数.
  * mysql_fetch_fields(res) - 获取表字段字符串数组MYSQL_FIELD的指针.
  * 将表字段名和对应的下标位置插入到 m_key_map.
  */
@@ -604,7 +602,7 @@ int CResultSet::_GetIndex(const char* key)
   }
 }
 
-/* 根据表字段下标值,获取该下标的行数据(整形). */
+/* 根据表字段下标值,获取查询结果在该下标的值(整数). */
 int CResultSet::GetInt(const char* key)
 {
   int idx = _GetIndex(key);
@@ -615,7 +613,7 @@ int CResultSet::GetInt(const char* key)
   }
 }
 
-/* 根据表字段下标值,获取该下标的行数据(字符串). */
+/* 根据表字段下标值,获取查询结果在该下标的值(字符串). */
 char* CResultSet::GetString(const char* key)
 {
   int idx = _GetIndex(key);
@@ -728,10 +726,10 @@ void CPrepareStatement::SetParam(uint32_t index, const string& value)
   m_param_bind[index].buffer_length = value.size();
 }
 
-/* CPrepareStatement::SetParam() 给m_param_bind设置执行sql语句参数.
+/* SetParam() 给m_param_bind设置执行sql预处理语句参数.
  * mysql_stmt_bind_param() 绑定参数.
- * mysql_stmt_execute() 执行sql语句.
- * mysql_stmt_affected_rows() 返回执行sql的执行效果.
+ * mysql_stmt_execute() 执行sql预处理语句.
+ * mysql_stmt_affected_rows() 返回执行效果.
  */
 bool CPrepareStatement::ExecuteUpdate()
 {
@@ -808,7 +806,7 @@ CDBConn::~CDBConn()
 }
 
 /* mysql_init() - Allocates or initializes a MYSQL object suitable for mysql_real_connect(). 
- * 初始化MYSQL示例,适配mysql_real_connect()函数建立连接.连接句柄是m_mysql.
+ * 初始化MYSQL实例,适配mysql_real_connect()函数建立连接.连接句柄是m_mysql.
  */ 
 int CDBConn::Init()
 {
@@ -938,8 +936,8 @@ int CDBPool::Init()
  *TODO: 增加保护机制,把分配的连接加入另一个队列,这样获取连接时,如果没有空闲连接,
  *TODO: 检查已经分配的连接多久没有返回,如果超过一定时间,则自动收回连接,放在用户忘了调用释放连接的接口
  */
-/* 取m_free_list空闲MySQL连接队列的连接, 如果m_free_list为空,则new一个连接.
- * 如果当前连接数大于最大连接数, 则挂起等待RelDBConn()回收资源.
+/* 取 m_free_list 空闲连接队列的连接, 如果m_free_list为空,则new一个连接.
+ * 如果当前连接数大于最大连接数, 则挂起,等待其他连接RelDBConn()释放资源.
  */
 CDBConn* CDBPool::GetDBConn()
 {
@@ -1122,10 +1120,10 @@ class CachePool;
  * redis> HSET people gump "Forrest Gump"
  * 根据key取值
  * redis> HGETALL people
- * 1) "jack"          # 域(filed)
- * 2) "Jack Sparrow"  # 值(value)
- * 3) "gump"
- * 4) "Forrest Gump
+ * 1) "jack"         # 域(filed)
+ * 2) "Jack Sparrow" # 值(value)
+ * 3) "gump"         # 域(filed)
+ * 4) "Forrest Gump  # 值(value)
  */
 class CacheConn {
 public:
@@ -1139,7 +1137,7 @@ public:
   string setex(string key, int timeout, string value);
   string set(string key, string& value);
 
-  //批量获取
+  // 批量获取
   bool mget(const vector<string>& keys, map<string, string>& ret_value);
   // 判断一个key是否存在
   bool isExists(string &key);
@@ -1155,7 +1153,7 @@ public:
   string hmset(string key, map<string, string>& hash);
   bool hmget(string key, list<string>& fields, list<string>& ret_value);
 
-  //原子加减1
+  // 原子加减1
   long incr(string key);
   long decr(string key);
 
@@ -1212,7 +1210,7 @@ private:
 
 private:
   static CacheManager*    s_cache_manager;
-  map<string, CachePool*>	m_cache_pool_map;
+  map<string, CachePool*> m_cache_pool_map;
 };
 
 #endif /* CACHEPOOL_H_ */
@@ -1221,7 +1219,7 @@ private:
 #include "CachePool.h"
 #include "ConfigFileReader.h"
 
-#define MIN_CACHE_CONN_CNT	2
+#define MIN_CACHE_CONN_CNT 2
 
 CacheManager* CacheManager::s_cache_manager = NULL;
 
@@ -1242,7 +1240,7 @@ CacheConn::~CacheConn()
 
 /* redis初始化连接和重连操作
  * redisConnectWithTimeout() 返回一个Redis连接句柄redisContext *m_pContext,
- * 其 redisContext 数据结构的内部实现是套接字socket, 即返回一个连接套接字connfd.
+ * 其 redisContext 数据结构的内部实现是套接字socket(连接套接字connfd).
  */
 int CacheConn::Init()
 {
@@ -1282,7 +1280,6 @@ int CacheConn::Init()
     return 2;
   }
 }
-
 
 const char* CacheConn::GetPoolName()
 {
@@ -1436,7 +1433,7 @@ bool CacheConn::isExists(string &key)
   }
 }
 
-/* 删除哈希表 key 中的一个或多个指定域,不存在的域将被忽略.返回成功移除的数量 */
+/* 删除哈希表 key 中的域,不存在的域将被忽略.返回成功移除的数量 */
 long CacheConn::hdel(string key, string field)
 {
   if (Init()) {
@@ -1610,6 +1607,7 @@ string CacheConn::hmset(string key, map<string, string>& hash)
   return ret_value;
 }
 
+/* 获取指定域(多个)的多个value. */
 bool CacheConn::hmget(string key, list<string>& fields, list<string>& ret_value)
 {
   if (Init()) {
@@ -1788,7 +1786,7 @@ CachePool::CachePool(const char* pool_name, const char* server_ip, int server_po
   m_server_port = server_port;
   m_db_num = db_num;
   m_max_conn_cnt = max_conn_cnt;
-  m_cur_conn_cnt = MIN_CACHE_CONN_CNT; //当前连接数设置为最小连接.
+  m_cur_conn_cnt = MIN_CACHE_CONN_CNT; //! 当前连接数设置为最小连接.
 }
 
 /* 释放m_free_list连接队列, m_free_list是空闲Redis连接资源(未被取用) */
@@ -1824,7 +1822,7 @@ int CachePool::Init()
 
 /* 从 m_free_list资源队列获取Redis连接资源.
  * 如果队列为空, new 一个新的连接资源.
- * 如果当前连接数大于等于最大连接数,使用调节变量等待RelCacheConn()进行资源回收.
+ * 如果当前连接数大于等于最大连接数,使用条件变量等待RelCacheConn()进行资源回收.
  */
 CacheConn* CachePool::GetCacheConn()
 {
@@ -1890,7 +1888,7 @@ CacheManager::~CacheManager()
 
 }
 
-/* 获取单例, 自动初始化Redis连接池. */
+/* 获取单例, 初始化Redis连接池. */
 CacheManager* CacheManager::getInstance()
 {
   if (!s_cache_manager) {
@@ -1963,7 +1961,7 @@ CacheConn* CacheManager::GetCacheConn(const char* pool_name)
   }
 }
 
-/* 返回Redis连接资源. */
+/* 释放Redis连接资源. */
 void CacheManager::RelCacheConn(CacheConn* pCacheConn)
 {
   if (!pCacheConn) {
@@ -1990,18 +1988,18 @@ class CacheConn;
 class CAutoDB
 {
 public:
-    CAutoDB(const char* pDBName, CDBConn** pDBConn);
-    ~CAutoDB();
+  CAutoDB(const char* pDBName, CDBConn** pDBConn);
+  ~CAutoDB();
 private:
-    CDBConn* m_pDBConn;
+  CDBConn* m_pDBConn;
 };
 
 class CAutoCache
 {
-    CAutoCache(const char* pCacheName, CacheConn** pCacheConn);
-    ~CAutoCache();
+  CAutoCache(const char* pCacheName, CacheConn** pCacheConn);
+  ~CAutoCache();
 private:
-    CacheConn* m_pCacheConn;
+  CacheConn* m_pCacheConn;
 };
 #endif /*defined(__AUTOPOOl_H__) */
 
@@ -2012,30 +2010,30 @@ private:
 
 CAutoDB::CAutoDB(const char* pDBName, CDBConn** pDBConn)
 {
-    m_pDBConn = CDBManager::getInstance()->GetDBConn(pDBName);
-    *pDBConn = m_pDBConn;
+  m_pDBConn = CDBManager::getInstance()->GetDBConn(pDBName);
+  *pDBConn = m_pDBConn;
 }
 
 CAutoDB::~CAutoDB()
 {
-    if (m_pDBConn != NULL) {
-        CDBManager::getInstance()->RelDBConn(m_pDBConn);
-        m_pDBConn = NULL;
-    }
+  if (m_pDBConn != NULL) {
+    CDBManager::getInstance()->RelDBConn(m_pDBConn);
+    m_pDBConn = NULL;
+  }
 }
 
 CAutoCache::CAutoCache(const char* pCacheName, CacheConn** pCacheConn)
 {
-    m_pCacheConn = CacheManager::getInstance()->GetCacheConn(pCacheName);
-    *pCacheConn = m_pCacheConn;
+  m_pCacheConn = CacheManager::getInstance()->GetCacheConn(pCacheName);
+  *pCacheConn = m_pCacheConn;
 }
 
 CAutoCache::~CAutoCache()
 {
-    if (m_pCacheConn != NULL) {
-        CacheManager::getInstance()->RelCacheConn(m_pCacheConn);
-        m_pCacheConn = NULL;
-    }
+  if (m_pCacheConn != NULL) {
+    CacheManager::getInstance()->RelCacheConn(m_pCacheConn);
+    m_pCacheConn = NULL;
+  }
 }
 
 /* db_proxy_server - HandlerMap.h */
@@ -2182,13 +2180,13 @@ pdu_handler_t CHandlerMap::GetHandler(uint32_t pdu_type)
  *
  * 包头:
  * typedef struct {
- *     uint32_t length;    // the whole pdu length
- *     uint16_t version;   // pdu version number
- *     uint16_t	flag;      // not used
- *     uint16_t	service_id;//
- *     uint16_t	command_id;// 通过包头的command_id知道该包是什么数据.
- *     uint16_t	seq_num;   // 包序号
- *     uint16_t reversed;  // 保留
+ *     uint32_t length;    //! the whole pdu length
+ *     uint16_t version;   //! pdu version number
+ *     uint16_t flag;      //! not used
+ *     uint16_t service_id;//!
+ *     uint16_t command_id;//! 通过包头的command_id知道该包是什么数据.
+ *     uint16_t seq_num;   //! 包序号
+ *     uint16_t reversed;  //! 保留
  * } PduHeader_t;
  *
  * 包体:
@@ -2197,7 +2195,7 @@ pdu_handler_t CHandlerMap::GetHandler(uint32_t pdu_type)
 
 typedef void (*pdu_handler_t)(CImPdu* pPdu, uint32_t conn_uuid);
 
-/* CProxyTask 是一个任务对象,是所有业务逻辑的执行入口 */
+/* 封装业务报文的处理函数 pdu_handler_t */
 class CProxyTask:public CTask
 {
 public:
@@ -2206,9 +2204,9 @@ public:
 
   virtual void run();
 private:
-  uint32_t      m_conn_uuid;   // 通过uuid获得对应数据包的连接对象.
-  pdu_handler_t m_pdu_handler; // pdu_handler_t 是函数指针.
-  CImPdu*       m_pPdu;        // m_pPdu 是一个数据包(包括 包头 和 包体).
+  uint32_t      m_conn_uuid;   //! 通过uuid获得对应数据包的连接对象.
+  pdu_handler_t m_pdu_handler; //! pdu_handler_t 是函数指针.
+  CImPdu*       m_pPdu;        //! m_pPdu 是一个数据包(包括 包头 和 包体).
 };
 
 #endif
@@ -2254,13 +2252,13 @@ void CProxyTask::run()
 #include "../base/util.h"
 #include "imconn.h"
 
-/* uuid获得对应数据包的连接对象. ResponsePdu_t 是应答包 */
+/* uuid获得对应数据包的连接. ResponsePdu_t 是应答包 */
 typedef struct {
   uint32_t conn_uuid;
   CImPdu*  pPdu;
 } ResponsePdu_t;
 
-/* CProxyConn 是代理连接对象. 使用PDU协议处理请求和发送应答消息. */
+/* CProxyConn 后台数据库和Redis的代理连接. 使用PDU协议处理请求和发送应答消息. */
 class CProxyConn : public CImConn {
 public:
   CProxyConn();
@@ -2275,16 +2273,16 @@ public:
 
   void HandlePduBuf(uchar_t* pdu_buf, uint32_t pdu_len);
 
-  static void AddResponsePdu(uint32_t conn_uuid, CImPdu* pPdu);	// 工作线程调用
-  static void SendResponsePduList(); // 主线程调用
+  static void AddResponsePdu(uint32_t conn_uuid, CImPdu* pPdu); //! 工作线程调用
+  static void SendResponsePduList(); //! 主线程调用
 private:
   //由于处理请求和发送回复在两个线程,socket的handle可能重用,
   //所以需要用一个一直增加的uuid来表示一个连接.
-  static uint32_t	s_uuid_alloctor;
+  static uint32_t s_uuid_alloctor;
   uint32_t        m_uuid;
 
   static CLock s_list_lock;
-  static list<ResponsePdu_t*>	s_response_pdu_list; // 主线程发送回复消息
+  static list<ResponsePdu_t*> s_response_pdu_list; //! 主线程发送回复消息
 };
 
 int init_proxy_conn(uint32_t thread_num);
@@ -2308,13 +2306,13 @@ CProxyConn* get_proxy_conn_by_uuid(uint32_t uuid);
  * CHandlerMap 是封装了typedef map<uint32_t, pdu_handler_t> HandlerMap_t;成员变量的类对象.
  * pdu_handler_t 是函数指针 - typedef void (*pdu_handler_t)(CImPdu* pPdu, uint32_t conn_uuid);
  */
-static ConnMap_t g_proxy_conn_map; // 其他服务器与db_proxy_server服务器的连接map.
-static UserMap_t g_uuid_conn_map;  // 工作线程连接标识uuid与连接CImConn的map.
-static CHandlerMap* s_handler_map; // commandId指令标识与pPdu函数指针map.
+static ConnMap_t g_proxy_conn_map; //! 其他服务器与db_proxy_server服务器的连接map.
+static UserMap_t g_uuid_conn_map;  //! 工作线程连接标识uuid与连接CImConn的map.
+static CHandlerMap* s_handler_map; //! commandId指令标识与pPdu函数指针map.
 
 uint32_t CProxyConn::s_uuid_alloctor = 0;
 CLock CProxyConn::s_list_lock;
-list<ResponsePdu_t*> CProxyConn::s_response_pdu_list; // 代理服务器回复的应答消息队列.
+list<ResponsePdu_t*> CProxyConn::s_response_pdu_list; //! 代理服务器回复的应答消息队列.
 static CThreadPool g_thread_pool;
 
 /* OnTimer() 是向连接db_proxy_server代理服务器的其他服务器发送心跳.
@@ -2333,7 +2331,7 @@ void proxy_timer_callback(void* callback_data, uint8_t msg, uint32_t handle, voi
   }
 }
 
-/* SendResponsePduList() 是根据应答消息队列连接的不同标识,分别发送消息应答.
+/* SendResponsePduList() 根据应答消息队列连接的不同标识,分别发送消息应答.
  * proxy_loop_callback() 将会被加入到EventLoop中被当做其他任务队列被检测执行.
  */
 void proxy_loop_callback(void* callback_data, uint8_t msg, uint32_t handle, void* pParam)
@@ -2342,7 +2340,7 @@ void proxy_loop_callback(void* callback_data, uint8_t msg, uint32_t handle, void
 }
 
 /*
- * 用于优雅的关闭连接：
+ * sig_handler() - 用于优雅的关闭连接：
  * 服务器收到SIGTERM信号后,发送CImPduStopReceivePacket数据包给每个连接,
  * 通知消息服务器不要往自己发送数据包请求,
  * 然后注册4s后调用的回调函数,回调时再退出进程
@@ -2353,7 +2351,7 @@ void exit_callback(void* callback_data, uint8_t msg, uint32_t handle, void* pPar
   exit(0);
 }
 
-/* sig_handler() 组织cPdu报文发给每个连接,
+/* sig_handler() 服务器接收中断信号后,组织cPdu报文发给每个连接,实现优雅的断开连接
  * netlib_register_timer() 注册定时器任务, 在eventloop循环中会被检测执行.
  */
 static void sig_handler(int sig_no)
@@ -2410,6 +2408,8 @@ CProxyConn* get_proxy_conn_by_uuid(uint32_t uuid)
 
 //////////////////////////
 /* m_uuid 是为了区分不同的工作线程 */
+/* CProxyConn()构造连接对象,m_uuid标识是连接次序.
+ */
 CProxyConn::CProxyConn()
 {
   m_uuid = ++CProxyConn::s_uuid_alloctor;
@@ -2443,7 +2443,6 @@ void CProxyConn::Close()
 void CProxyConn::OnConnect(net_handle_t handle)
 {
   m_handle = handle;
-
   g_proxy_conn_map.insert(make_pair(handle, this));
 
   netlib_option(handle, NETLIB_OPT_SET_CALLBACK, (void*)imconn_callback);
@@ -2488,7 +2487,6 @@ void CProxyConn::OnRead()
   }
 
 }
-
 
 void CProxyConn::OnClose()
 {
@@ -2606,6 +2604,7 @@ public:
     CAutoLock auto_lock(&last_update_lock_);
     return m_nLastUpdate;
   }
+
   uint32_t getLastUpdateGroup() {
     CAutoLock auto_lock(&last_update_lock_);
     return m_nLastUpdateGroup;
@@ -2638,7 +2637,7 @@ private:
 #ifdef _WIN32
   DWORD m_nGroupChatThreadId;
 #else
-  pthread_t	m_nGroupChatThreadId;
+  pthread_t m_nGroupChatThreadId;
 #endif
   CLock last_update_lock_;
 };
@@ -2904,7 +2903,6 @@ void* CSyncCenter::doSyncGroupChat(void* arg)
   return NULL;
 }
 
-
 /* db_proxy_server - db_proxy_server.cpp */
 #include "netlib.h"
 #include "ConfigFileReader.h"
@@ -3000,7 +2998,6 @@ int main(int argc, char* argv[])
     return -1;
   }
 
-
   CConfigFileReader config_file("dbproxyserver.conf");
 
   char* listen_ip = config_file.GetConfigName("ListenIP");
@@ -3009,7 +3006,6 @@ int main(int argc, char* argv[])
   char* str_file_site = config_file.GetConfigName("MsfsSite");
   char* str_aes_key = config_file.GetConfigName("aesKey");
   char* unix_socket_path = config_file.GetConfigName("UnixSocket");
-
 
   if (!listen_ip || !str_listen_port || !str_thread_num || !str_file_site || !str_aes_key) {
     log("missing ListenIP/ListenPort/ThreadNum/MsfsSite/aesKey, exit...");
@@ -3081,9 +3077,9 @@ int main(int argc, char* argv[])
 #include "ImPduBase.h"
 
 namespace DB_PROXY {
-/*  @param pPdu      收到的packet包指针
- *  @param conn_uuid 该包过来的socket 描述符
- */
+  /*  @param pPdu      收到的packet包指针
+   *  @param conn_uuid 该包过来的socket 描述符
+   */
   void doLogin(CImPdu* pPdu, uint32_t conn_uuid);
 };
 
@@ -3149,6 +3145,7 @@ void doLogin(CImPdu* pPdu, uint32_t conn_uuid)
          放在这里，每次都要遍历，会有一点点性能的损失。
          放在后面，可能会造成30分钟之前有10次错的，但是本次是对的就没办法再访问了。
        */
+      //! 如果不存在超过30分钟的记录,itTime指针将移动到末端
       auto itTime=lsErrorTime.begin();
       for(; itTime!=lsErrorTime.end();++itTime)
       {
@@ -3157,6 +3154,7 @@ void doLogin(CImPdu* pPdu, uint32_t conn_uuid)
           break;
         }
       }
+
       if(itTime != lsErrorTime.end())
       {
         lsErrorTime.erase(itTime, lsErrorTime.end());
@@ -3194,12 +3192,10 @@ void doLogin(CImPdu* pPdu, uint32_t conn_uuid)
       pUser->set_user_nick_name(cUser.user_nick_name());
       pUser->set_user_domain(cUser.user_domain());
       pUser->set_avatar_url(cUser.avatar_url());
-
       pUser->set_email(cUser.email());
       pUser->set_user_tel(cUser.user_tel());
       pUser->set_user_real_name(cUser.user_real_name());
       pUser->set_status(0);
-
       pUser->set_sign_info(cUser.sign_info());
 
       msgResp.set_result_code(0);
@@ -3229,7 +3225,7 @@ void doLogin(CImPdu* pPdu, uint32_t conn_uuid)
     msgResp.set_result_string("服务端内部错误");
   }
 
-  pPduResp->SetPBMsg(&msgResp); //设置包体数据信息(PB: packet body)
+  pPduResp->SetPBMsg(&msgResp); //! 设置包体数据信息(PB: packet body)
   pPduResp->SetSeqNum(pPdu->GetSeqNum());
   pPduResp->SetServiceId(IM::BaseDefine::SID_OTHER);
   pPduResp->SetCommandId(IM::BaseDefine::CID_OTHER_VALIDATE_RSP);
@@ -3284,9 +3280,9 @@ bool CInterLoginStrategy::doLogin(const std::string &strName, const std::string 
   if (pDBConn) {
 
     string tmpName(pDBConn->EscapeString(strName.c_str(),strName.size()));
-
     string strSql = "select * from IMUser where name='" + tmpName + "' and status=0";
-    //string strSql = "select * from IMUser where name=? and status=?";
+
+    //! string strSql = "select * from IMUser where name=? and status=?";
     /*
        CPrepareStatement* stmt = new CPrepareStatement();
        if (stmt->Init(pDBConn->GetMysql(), strSql))
@@ -3308,7 +3304,6 @@ bool CInterLoginStrategy::doLogin(const std::string &strName, const std::string 
         nId = pResultSet->GetInt("id");
         strResult = pResultSet->GetString("password");
         strSalt = pResultSet->GetString("salt");
-
         strNick = pResultSet->GetString("nick");
         nGender = pResultSet->GetInt("sex");
         strRealName = pResultSet->GetString("name");
@@ -3319,7 +3314,6 @@ bool CInterLoginStrategy::doLogin(const std::string &strName, const std::string 
         nDeptId = pResultSet->GetInt("departId");
         nStatus = pResultSet->GetInt("status");
         strSignInfo = pResultSet->GetString("sign_info");
-
       }
 
       string strInPass = strPass + strSalt;
@@ -3342,8 +3336,8 @@ bool CInterLoginStrategy::doLogin(const std::string &strName, const std::string 
         user.set_sign_info(strSignInfo);
 
       }
-      delete  pResultSet;
 
+      delete  pResultSet;
     }
     // }
     // delete stmt;
@@ -3407,7 +3401,7 @@ private:
   bool readAudioContent(uint32_t nCostTime, uint32_t nSize, const string& strPath, IM::BaseDefine::MsgInfo& msg);
 
 private:
-  static CAudioModel*	m_pInstance;
+  static CAudioModel* m_pInstance;
   string m_strFileSite;
 };
 
@@ -3564,7 +3558,8 @@ int CAudioModel::saveAudioInfo(uint32_t nFromId, uint32_t nToId, uint32_t nCreat
       {
         nAudioId = pDBConn->GetInsertId();
         log("audioId=%d", nAudioId);
-      } else
+      }
+      else
       {
         log("sql failed: %s", strSql.c_str());
       }
@@ -3606,7 +3601,7 @@ bool CAudioModel::readAudioContent(uint32_t nCostTime, uint32_t nSize, const str
   cAudioMsg.data_len = 4;
   cAudioMsg.fileSize = nSize;
 
-  // 获取音频数据，写入上面分配的内存
+  // 获取音频数据，写入内存cAudioMsg
   CHttpClient httpClient;
   if(!httpClient.DownloadByteFile(strPath, &cAudioMsg))
   {
@@ -3638,8 +3633,8 @@ bool CAudioModel::readAudioContent(uint32_t nCostTime, uint32_t nSize, const str
  * setCallReport 插入一条用户调用记录.
  * updateUserSignInfo 更新用户个人签名.
  * getUserSingInfo 获取用户个人签名.
- * updatePushShield 设置APP应用夜间消息推送屏蔽.
- * getPushShield 获取APP应用夜间消息推送屏蔽状态.
+ * updatePushShield 设置消息推送屏蔽.
+ * getPushShield 获取消息推送屏蔽状态.
  */
 class CUserModel
 {
@@ -3705,7 +3700,7 @@ void CUserModel::getChangedId(uint32_t& nLastTime, list<uint32_t> &lsIds)
     string strSql ;
     if(nLastTime == 0)
     {
-      strSql = "select id, updated from IMUser where status != 3";
+      strSql = "select id, updated from IMUser where status != 3"; //! 1. 试用期 2. 正式 3. 离职 4.实习
     }
     else
     {
@@ -3714,7 +3709,8 @@ void CUserModel::getChangedId(uint32_t& nLastTime, list<uint32_t> &lsIds)
     CResultSet* pResultSet = pDBConn->ExecuteQuery(strSql.c_str());
     if(pResultSet)
     {
-      while (pResultSet->Next()) {
+      while (pResultSet->Next())
+      {
         uint32_t nId = pResultSet->GetInt("id");
         uint32_t nUpdated = pResultSet->GetInt("updated");
         if(nLastTime < nUpdated)
@@ -3778,10 +3774,10 @@ void CUserModel::getUsers(list<uint32_t> lsIds, list<IM::BaseDefine::UserInfo> &
         cUser.set_email(pResultSet->GetString("email"));
         cUser.set_avatar_url(pResultSet->GetString("avatar"));
         cUser.set_sign_info(pResultSet->GetString("sign_info"));
-
         cUser.set_department_id(pResultSet->GetInt("departId"));
         cUser.set_department_id(pResultSet->GetInt("departId"));
         cUser.set_status(pResultSet->GetInt("status"));
+
         lsUsers.push_back(cUser);
       }
       delete pResultSet;
@@ -3888,14 +3884,13 @@ bool CUserModel::insertUser(DBUserInfo_t &cUser)
       stmt->SetParam(index++, cUser.strTel);
       stmt->SetParam(index++, cUser.strEmail);
       stmt->SetParam(index++, cUser.strAvatar);
-
       stmt->SetParam(index++, cUser.sign_info);
       stmt->SetParam(index++, cUser.nDeptId);
       stmt->SetParam(index++, nStatus);
       stmt->SetParam(index++, nNow);
       stmt->SetParam(index++, nNow);
-      bRet = stmt->ExecuteUpdate();
 
+      bRet = stmt->ExecuteUpdate();
       if (!bRet)
       {
         log("insert user failed: %s", strSql.c_str());
@@ -3923,21 +3918,22 @@ void CUserModel::clearUserCounter(uint32_t nUserId, uint32_t nPeerId, IM::BaseDe
       // Clear P2P msg Counter
       if(nSessionType == IM::BaseDefine::SESSION_TYPE_SINGLE)
       {
-        int nRet = pCacheConn->hdel("unread_" + int2string(nUserId), int2string(nPeerId));
+        //! Redis删除指定(key, field)删除数据
+        int nRet = pCacheConn->hdel("unread_" + int2string(nUserId), int2string(nPeerId)); 
         if(!nRet)
         {
           log("hdel failed %d->%d", nPeerId, nUserId);
         }
       }
-      // Clear Group msg Counter
-      else if(nSessionType == IM::BaseDefine::SESSION_TYPE_GROUP)
+      else if(nSessionType == IM::BaseDefine::SESSION_TYPE_GROUP) //! Clear Group msg Counter
       {
-        string strGroupKey = int2string(nPeerId) + GROUP_TOTAL_MSG_COUNTER_REDIS_KEY_SUFFIX;
+        string strGroupKey = int2string(nPeerId) + GROUP_TOTAL_MSG_COUNTER_REDIS_KEY_SUFFIX; //! "_im_group_msg"
         map<string, string> mapGroupCount;
+        //! Redis指定(key),获取该key下所有的(field, value) bug???
         bool bRet = pCacheConn->hgetAll(strGroupKey, mapGroupCount);
         if(bRet)
         {
-          string strUserKey = int2string(nUserId) + "_" + int2string(nPeerId) + GROUP_USER_MSG_COUNTER_REDIS_KEY_SUFFIX;
+          string strUserKey = int2string(nUserId) + "_" + int2string(nPeerId) + GROUP_USER_MSG_COUNTER_REDIS_KEY_SUFFIX; //! _im_user_group
           string strReply = pCacheConn->hmset(strUserKey, mapGroupCount);
           if(strReply.empty()) {
             log("hmset %s failed !", strUserKey.c_str());
@@ -3961,7 +3957,7 @@ void CUserModel::clearUserCounter(uint32_t nUserId, uint32_t nPeerId, IM::BaseDe
   }
 }
 
-/* 插入一条用户调用记录. */
+/* 插入一条调用日志. */
 void CUserModel::setCallReport(uint32_t nUserId, uint32_t nPeerId, IM::BaseDefine::ClientType nClientType)
 {
   if(IM::BaseDefine::ClientType_IsValid(nClientType))
@@ -4007,7 +4003,6 @@ void CUserModel::setCallReport(uint32_t nUserId, uint32_t nPeerId, IM::BaseDefin
 /* 更新用户个人签名. */
 bool CUserModel::updateUserSignInfo(uint32_t user_id, const string& sign_info)
 {
-
   if (sign_info.length() > 128) {
     log("updateUserSignInfo: sign_info.length()>128.\n");
     return false;
@@ -4023,8 +4018,8 @@ bool CUserModel::updateUserSignInfo(uint32_t user_id, const string& sign_info)
       log("updateUserSignInfo: update failed:%s", str_sql.c_str());
     }else{
       CSyncCenter::getInstance()->updateTotalUpdate(now);
-
     }
+
     db_manager->RelDBConn(db_conn);
   } else {
     log("updateUserSignInfo: no db connection for teamtalk_master");
@@ -4057,7 +4052,7 @@ bool CUserModel::getUserSingInfo(uint32_t user_id, string* sign_info)
   return rv;
 }
 
-/* 设置APP应用夜间消息推送屏蔽. */
+/* 设置消息推送屏蔽. */
 bool CUserModel::updatePushShield(uint32_t user_id, uint32_t shield_status)
 {
   bool rv = false;
@@ -4079,14 +4074,15 @@ bool CUserModel::updatePushShield(uint32_t user_id, uint32_t shield_status)
   return rv;
 }
 
-/* 获取APP应用夜间消息推送屏蔽状态. */
+/* 获取消息推送屏蔽状态. */
 bool CUserModel::getPushShield(uint32_t user_id, uint32_t* shield_status)
 {
   bool rv = false;
 
   CDBManager* db_manager = CDBManager::getInstance();
   CDBConn* db_conn = db_manager->GetDBConn("teamtalk_slave");
-  if (db_conn) {
+  if (db_conn)
+  {
     string str_sql = "select push_shield_status from IMUser where id="+int2string(user_id);
     CResultSet* result_set = db_conn->ExecuteQuery(str_sql.c_str());
     if(result_set) {
@@ -4099,7 +4095,9 @@ bool CUserModel::getPushShield(uint32_t user_id, uint32_t* shield_status)
       log("getPushShield: no result set for sql:%s", str_sql.c_str());
     }
     db_manager->RelDBConn(db_conn);
-  } else {
+  }
+  else
+  {
     log("getPushShield: no db connection for teamtalk_slave");
   }
 
@@ -4115,11 +4113,11 @@ bool CUserModel::getPushShield(uint32_t user_id, uint32_t* shield_status)
 /*  @param pPdu      收到的packet包指针
  *  @param conn_uuid 该包过来的socket 描述符
  *
- * getUserInfo 获取好友列表.
+ * getUserInfo 获取用户列表.
  * getChangedUser 获取有变更的用户列表.
  * changeUserSignInfo 更新用户个性签名.
- * doPushShield 设置APP应用夜间消息推送屏蔽.
- * doQueryPushShield 获取APP应用夜间消息推送屏蔽状态.
+ * doPushShield 设置消息推送屏蔽.
+ * doQueryPushShield 获取消息推送屏蔽状态.
  */
 namespace DB_PROXY {
   void getUserInfo(CImPdu* pPdu, uint32_t conn_uuid);
@@ -4145,7 +4143,7 @@ namespace DB_PROXY {
 
 namespace DB_PROXY {
 
-/* 获取好友列表 */
+/* 获取用户列表 */
 void getUserInfo(CImPdu* pPdu, uint32_t conn_uuid)
 {
   IM::Buddy::IMUsersInfoReq msg;
@@ -4163,17 +4161,14 @@ void getUserInfo(CImPdu* pPdu, uint32_t conn_uuid)
     std::list<IM::BaseDefine::UserInfo> lsUser;
     CUserModel::getInstance()->getUsers(idList, lsUser);
     msgResp.set_user_id(from_user_id);
-    for(list<IM::BaseDefine::UserInfo>::iterator it=lsUser.begin();
-        it!=lsUser.end(); ++it)
+    for(list<IM::BaseDefine::UserInfo>::iterator it=lsUser.begin(); it!=lsUser.end(); ++it)
     {
       IM::BaseDefine::UserInfo* pUser = msgResp.add_user_info_list();
       //*pUser = *it;
-
       pUser->set_user_id(it->user_id());
       pUser->set_user_gender(it->user_gender());
       pUser->set_user_nick_name(it->user_nick_name());
       pUser->set_avatar_url(it->avatar_url());
-
       pUser->set_sign_info(it->sign_info());
       pUser->set_department_id(it->department_id());
       pUser->set_email(it->email());
@@ -4204,7 +4199,6 @@ void getChangedUser(CImPdu* pPdu, uint32_t conn_uuid)
   if(msg.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength()))
   {
     CImPdu* pPduRes = new CImPdu;
-
     uint32_t nReqId = msg.user_id();
     uint32_t nLastTime = msg.latest_update_time();
     uint32_t nLastUpdate = CSyncCenter::getInstance()->getLastUpdate();
@@ -4219,8 +4213,8 @@ void getChangedUser(CImPdu* pPdu, uint32_t conn_uuid)
 
     msgResp.set_user_id(nReqId);
     msgResp.set_latest_update_time(nLastTime);
-    for (list<IM::BaseDefine::UserInfo>::iterator it=lsUsers.begin();
-        it!=lsUsers.end(); ++it) {
+    for (list<IM::BaseDefine::UserInfo>::iterator it=lsUsers.begin(); it!=lsUsers.end(); ++it)
+    {
       IM::BaseDefine::UserInfo* pUser = msgResp.add_user_list();
       //*pUser = *it;
       pUser->set_user_id(it->user_id());
@@ -4254,7 +4248,8 @@ void changeUserSignInfo(CImPdu* pPdu, uint32_t conn_uuid)
 {
   IM::Buddy::IMChangeSignInfoReq req;
   IM::Buddy::IMChangeSignInfoRsp resp;
-  if(req.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength())) {
+  if(req.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength()))
+  {
     uint32_t user_id = req.user_id();
     const string& sign_info = req.sign_info();
 
@@ -4262,10 +4257,13 @@ void changeUserSignInfo(CImPdu* pPdu, uint32_t conn_uuid)
 
     resp.set_user_id(user_id);
     resp.set_result_code(result ? 0 : 1);
-    if (result) {
+    if (result)
+    {
       resp.set_sign_info(sign_info);
       log("changeUserSignInfo sucess, user_id=%u, sign_info=%s", user_id, sign_info.c_str());
-    } else {
+    }
+    else
+    {
       log("changeUserSignInfo false, user_id=%u, sign_info=%s", user_id, sign_info.c_str());
     }
 
@@ -4276,32 +4274,35 @@ void changeUserSignInfo(CImPdu* pPdu, uint32_t conn_uuid)
     pdu_resp->SetServiceId(IM::BaseDefine::SID_BUDDY_LIST);
     pdu_resp->SetCommandId(IM::BaseDefine::CID_BUDDY_LIST_CHANGE_SIGN_INFO_RESPONSE);
     CProxyConn::AddResponsePdu(conn_uuid, pdu_resp);
-
-  } else {
+  }
+  else
+  {
     log("changeUserSignInfo: IMChangeSignInfoReq ParseFromArray failed!!!");
   }
 }
   
-/* 设置夜间APP应用消息推送屏蔽. */
+/* 设置消息推送屏蔽. */
 void doPushShield(CImPdu* pPdu, uint32_t conn_uuid) {
   IM::Login::IMPushShieldReq req;
   IM::Login::IMPushShieldRsp resp;
   if(req.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength())) {
     uint32_t user_id = req.user_id();
     uint32_t shield_status = req.shield_status();
-    // const string& sign_info = req.sign_info();
+    //! const string& sign_info = req.sign_info();
 
     bool result = CUserModel::getInstance()->updatePushShield(user_id, shield_status);
 
     resp.set_user_id(user_id);
     resp.set_result_code(result ? 0 : 1);
-    if (result) {
+    if (result)
+    {
       resp.set_shield_status(shield_status);
       log("doPushShield sucess, user_id=%u, shield_status=%u", user_id, shield_status);
-    } else {
+    }
+    else
+    {
       log("doPushShield false, user_id=%u, shield_status=%u", user_id, shield_status);
     }
-
 
     CImPdu* pdu_resp = new CImPdu();
     resp.set_attach_data(req.attach_data());
@@ -4310,17 +4311,19 @@ void doPushShield(CImPdu* pPdu, uint32_t conn_uuid) {
     pdu_resp->SetServiceId(IM::BaseDefine::SID_LOGIN);
     pdu_resp->SetCommandId(IM::BaseDefine::CID_LOGIN_RES_PUSH_SHIELD);
     CProxyConn::AddResponsePdu(conn_uuid, pdu_resp);
-
-  } else {
+  }
+  else
+  {
     log("doPushShield: IMPushShieldReq ParseFromArray failed!!!");
   }
 }
 
-/* 获取夜间APP应用消息推送屏蔽状态. */
+/* 获取消息推送屏蔽状态. */
 void doQueryPushShield(CImPdu* pPdu, uint32_t conn_uuid) {
   IM::Login::IMQueryPushShieldReq req;
   IM::Login::IMQueryPushShieldRsp resp;
-  if(req.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength())) {
+  if(req.ParseFromArray(pPdu->GetBodyData(), pPdu->GetBodyLength()))
+  {
     uint32_t user_id = req.user_id();
     uint32_t shield_status = 0;
 
@@ -4328,10 +4331,13 @@ void doQueryPushShield(CImPdu* pPdu, uint32_t conn_uuid) {
 
     resp.set_user_id(user_id);
     resp.set_result_code(result ? 0 : 1);
-    if (result) {
+    if (result)
+    {
       resp.set_shield_status(shield_status);
       log("doQueryPushShield sucess, user_id=%u, shield_status=%u", user_id, shield_status);
-    } else {
+    }
+    else
+    {
       log("doQueryPushShield false, user_id=%u", user_id);
     }
 
@@ -4342,7 +4348,9 @@ void doQueryPushShield(CImPdu* pPdu, uint32_t conn_uuid) {
     pdu_resp->SetServiceId(IM::BaseDefine::SID_LOGIN);
     pdu_resp->SetCommandId(IM::BaseDefine::CID_LOGIN_RES_QUERY_PUSH_SHIELD);
     CProxyConn::AddResponsePdu(conn_uuid, pdu_resp);
-  } else {
+  }
+  else
+  {
     log("doQueryPushShield: IMQueryPushShieldReq ParseFromArray failed!!!");
   }
 }
@@ -4368,31 +4376,31 @@ const uint32_t MAX_UNREAD_COUNT = 100;
 
 /* Redis中的群哈希记录:
  * key    - filed  - value
- * 群组id - 用户id - 入群时间
+ * 群组id - 用户id - 创建时间
  * group_member_GroupId - UserId - Createtime
 
  * createGroup 创建群
  * removeGroup 删除群
- * getUserGroup 获取用户加入的群列表
- * getUserGroupIds 获取用户加入的所有群列表
- * getGroupInfo 获取群列表,并填充用户
- * setPush 设置推送状态,屏蔽或者取消屏蔽
- * getPush 获取推送状态
+ * getUserGroup  获取群列表Version版本信息
+ * getUserGroupIds 获取群列表id
+ * getGroupInfo 获取群列表,并更新群列表
+ * setPush 设置群消息推送状态,屏蔽或者取消屏蔽
+ * getPush 获取群消息推送状态
  * modifyGroupMember 维护群(添加或者删除群成员)
  * getGroupUser 在Redis缓存中获取群成员
  * isInGroup 是否在群内(查Redis缓存)
- * updateGroupChat 更新群聊天最新时间
- * isValidateGroupId 群是否存在
+ * updateGroupChat 更新群最后聊天时间
+ * isValidateGroupId 群是否有效
  * getUserJoinTime 获取群成员加入时间
 
- * insertNewGroup 群组表插入一条新记录
- * insertNewMember 插入系列用户
+ * insertNewGroup IMGroup表插入一条新记录
+ * insertNewMember 插入多个用户
  * getGroupVersion 获取群版本信息
  * hasModifyPermission 是否有修改群权限
  * addMember 添加群成员
  * removeMember 删除群成员
  * removeRepeatUser 删除重复的成员
- * removeSession 删除群会话接口
+ * removeSession 删除群会话
  * incGroupVersion 更新群版本号
  * clearGroupMember 删除所有群成员
  * fillGroupMember 填满群成员
@@ -4401,7 +4409,6 @@ class CGroupModel {
 public:
   virtual ~CGroupModel();
   static CGroupModel* getInstance();
-
 public:
   uint32_t createGroup(uint32_t nUserId, const string& strGroupName, const string& strGroupAvatar, uint32_t nGroupType, set<uint32_t>& setMember);
   bool removeGroup(uint32_t nUserId, uint32_t nGroupId, list<uint32_t>& lsCurUserId);
@@ -4416,6 +4423,7 @@ public:
   void updateGroupChat(uint32_t nGroupId);
   bool isValidateGroupId(uint32_t nGroupId);
   uint32_t getUserJoinTime(uint32_t nGroupId, uint32_t nUserId);
+
 private:
   CGroupModel();
 
@@ -4434,7 +4442,7 @@ private:
   void fillGroupMember(list<IM::BaseDefine::GroupInfo>& lsGroups);
 
 private:
-  static CGroupModel*	m_pInstance;
+  static CGroupModel* m_pInstance;
 };
 
 #endif /* defined(__IM_GROUP_MODEL__) */
@@ -4472,7 +4480,7 @@ CGroupModel* CGroupModel::getInstance()
 }
 
 /**
- *  创建群
+ *  创建群(setMember是群初始成员)
  *
  *  @param nUserId        创建者
  *  @param strGroupName   群名
@@ -4485,21 +4493,23 @@ CGroupModel* CGroupModel::getInstance()
 uint32_t CGroupModel::createGroup(uint32_t nUserId, const string& strGroupName, const string& strGroupAvatar, uint32_t nGroupType, set<uint32_t>& setMember)
 {
   uint32_t nGroupId = INVALID_VALUE;
-  do {
+  do
+  {
     if(strGroupName.empty()) {
       break;
     }
+
+    //! setMember群初始成员不能为空
     if (setMember.empty()) {
       break;
     }
-    // remove repeat user
+    //! remove repeat user
 
-
-    //insert IMGroup
+    //! insert IMGroup
     if(!insertNewGroup(nUserId, strGroupName, strGroupAvatar, nGroupType, (uint32_t)setMember.size(), nGroupId)) {
       break;
     }
-    bool bRet = CGroupMessageModel::getInstance()->resetMsgId(nGroupId);
+    bool bRet = CGroupMessageModel::getInstance()->resetMsgId(nGroupId); //! Redis保存群组nGroupId [group_msg_id_XXX,"0"]
     if(!bRet)
     {
       log("reset msgId failed. groupId=%u", nGroupId);
@@ -4534,7 +4544,7 @@ bool CGroupModel::removeGroup(uint32_t nUserId, uint32_t nGroupId, list<uint32_t
 
       if(0 == nCreator || nCreator == nUserId)
       {
-        //设置群组不可用。
+        //! 设置群组不可用  0-正常，1-删除  bug!!!
         strSql = "update IMGroup set status=0 where id="+int2string(nGroupId);
         bRet = pDBConn->ExecuteUpdate(strSql.c_str());
       }
@@ -4564,7 +4574,7 @@ bool CGroupModel::removeGroup(uint32_t nUserId, uint32_t nGroupId, list<uint32_t
   return bRet;
 }
 
-/* 获取用户加入的群列表 */
+/* 获取群列表Version版本信息 */
 void CGroupModel::getUserGroup(uint32_t nUserId, list<IM::BaseDefine::GroupVersionInfo>& lsGroup, uint32_t nGroupType)
 {
   list<uint32_t> lsGroupId;
@@ -4575,7 +4585,7 @@ void CGroupModel::getUserGroup(uint32_t nUserId, list<IM::BaseDefine::GroupVersi
   }
 }
 
-/* 获取群列表,并填充用户 */
+/* 获取群列表,并更新群列表 */
 void CGroupModel::getGroupInfo(map<uint32_t,IM::BaseDefine::GroupVersionInfo>& mapGroupId, list<IM::BaseDefine::GroupInfo>& lsGroupInfo)
 { 
   if (!mapGroupId.empty())
@@ -4654,7 +4664,8 @@ bool CGroupModel::modifyGroupMember(uint32_t nUserId, uint32_t nGroupId, IM::Bas
   bool bRet = false;
   if(hasModifyPermission(nUserId, nGroupId, nType))
   {
-    switch (nType) {
+    switch (nType)
+    {
       case IM::BaseDefine::GROUP_MODIFY_TYPE_ADD:
         bRet = addMember(nGroupId, setUserId, lsCurUserId);
         break;
@@ -4666,6 +4677,7 @@ bool CGroupModel::modifyGroupMember(uint32_t nUserId, uint32_t nGroupId, IM::Bas
         log("unknown type:%u while modify group.%u->%u", nType, nUserId, nGroupId);
         break;
     }
+
     //if modify group member success, need to inc the group version and clear the user count;
     if(bRet)
     {
@@ -4682,7 +4694,7 @@ bool CGroupModel::modifyGroupMember(uint32_t nUserId, uint32_t nGroupId, IM::Bas
   }    return bRet;
 }
 
-/* 群组表插入一条新记录 */
+/* IMGroup表插入一条新记录 */
 bool CGroupModel::insertNewGroup(uint32_t nUserId, const string& strGroupName, const string& strGroupAvatar, uint32_t nGroupType, uint32_t nMemberCnt, uint32_t& nGroupId)
 {
   bool bRet = false;
@@ -4691,8 +4703,8 @@ bool CGroupModel::insertNewGroup(uint32_t nUserId, const string& strGroupName, c
   CDBConn* pDBConn = pDBManager->GetDBConn("teamtalk_master");
   if (pDBConn)
   {
-    string strSql = "insert into IMGroup(`name`, `avatar`, `creator`, `type`,`userCnt`, `status`, `version`, `lastChated`, `updated`, `created`) "\
-                     "values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    string strSql = "insert into IMGroup(`name`, `avatar`, `creator`, `type`,`userCnt`, `status`, `version`, `lastChated`, `updated`, `created`) "
+                    "values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     CPrepareStatement* pStmt = new CPrepareStatement();
     if (pStmt->Init(pDBConn->GetMysql(), strSql))
@@ -4702,16 +4714,16 @@ bool CGroupModel::insertNewGroup(uint32_t nUserId, const string& strGroupName, c
       uint32_t nStatus = 0;
       uint32_t nVersion = 1;
       uint32_t nLastChat = 0;
-      pStmt->SetParam(index++, strGroupName);
-      pStmt->SetParam(index++, strGroupAvatar);
-      pStmt->SetParam(index++, nUserId);
-      pStmt->SetParam(index++, nGroupType);
-      pStmt->SetParam(index++, nMemberCnt);
-      pStmt->SetParam(index++, nStatus);
-      pStmt->SetParam(index++, nVersion);
-      pStmt->SetParam(index++, nLastChat);
-      pStmt->SetParam(index++, nCreated);
-      pStmt->SetParam(index++, nCreated);
+      pStmt->SetParam(index++, strGroupName);   //! 群名称
+      pStmt->SetParam(index++, strGroupAvatar); //! 群头像
+      pStmt->SetParam(index++, nUserId);        //! 建者用户id
+      pStmt->SetParam(index++, nGroupType);     //! 群组类型，1-固定;2-临时群
+      pStmt->SetParam(index++, nMemberCnt);     //! 成员人数
+      pStmt->SetParam(index++, nStatus);        //! 是否删除,0-正常，1-删除
+      pStmt->SetParam(index++, nVersion);       //! 版本号
+      pStmt->SetParam(index++, nLastChat);      //! 最后聊天时间
+      pStmt->SetParam(index++, nCreated);       //! 更新时间
+      pStmt->SetParam(index++, nCreated);       //! 创建时间
 
       bRet = pStmt->ExecuteUpdate();
       if(bRet) {
@@ -4728,7 +4740,7 @@ bool CGroupModel::insertNewGroup(uint32_t nUserId, const string& strGroupName, c
   return bRet;
 }
 
-/* 插入系列用户(如果用户在群成员表有记录则修改其状态status,再插入剩下的新用户,同步到Redis) */
+/* 插入多个用户(如果用户在IMGroupMember表有记录则修改其状态status,再插入剩下的新用户,同步到Redis) */
 bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
 {
   bool bRet = false;
@@ -4740,7 +4752,7 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
     if (pDBConn)
     {
       uint32_t nCreated = (uint32_t)time(NULL);
-      // 获取 已经存在群里的用户
+      //! 获取已经存在IMGroupMember表的用户,保存在setHasUser
       string strClause;
       bool bFirst = true;
       for (auto it=setUsers.begin(); it!=setUsers.end(); ++it)
@@ -4771,6 +4783,7 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
       }
       pDBManager->RelDBConn(pDBConn);
 
+      //! 在teamtalk_master插入用户
       pDBConn = pDBManager->GetDBConn("teamtalk_master");
       if (pDBConn)
       {
@@ -4778,7 +4791,7 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
         CacheConn* pCacheConn = pCacheManager->GetCacheConn("group_member");
         if (pCacheConn)
         {
-          // 设置已经存在群中人的状态
+          //! 已经存在IMGroupMember表中的用户只需要更新状态
           if (!setHasUser.empty())
           {
             strClause.clear();
@@ -4798,10 +4811,10 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
             strSql = "update IMGroupMember set status=0, updated="+int2string(nCreated)+" where groupId=" + int2string(nGroupId) + " and userId in (" + strClause + ")";
             pDBConn->ExecuteUpdate(strSql.c_str());
           }
-          strSql = "insert into IMGroupMember(`groupId`, `userId`, `status`, `created`, `updated`) values\
-                    (?,?,?,?,?)";
 
-          //插入新成员
+          //! 插入新成员
+          strSql = "insert into IMGroupMember(`groupId`, `userId`, `status`, `created`, `updated`) values (?,?,?,?,?)";
+
           auto it = setUsers.begin();
           uint32_t nStatus = 0;
           uint32_t nIncMemberCnt = 0;
@@ -4832,13 +4845,14 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
             }
             ++it;
           }
+
           if(nIncMemberCnt != 0)
           {
             strSql = "update IMGroup set userCnt=userCnt+" + int2string(nIncMemberCnt) + " where id="+int2string(nGroupId);
             pDBConn->ExecuteUpdate(strSql.c_str());
           }
 
-          //更新一份到redis中
+          //! 插入的群用户更新到redis的group_member实例中
           string strKey = "group_member_"+int2string(nGroupId);
           for(auto it = setUsers.begin(); it!=setUsers.end(); ++it)
           {
@@ -4866,7 +4880,7 @@ bool CGroupModel::insertNewMember(uint32_t nGroupId, set<uint32_t>& setUsers)
   return bRet;
 }
 
-/* 获取用户加入的所有群列表 */
+/* 获取群列表id */
 void CGroupModel::getUserGroupIds(uint32_t nUserId, list<uint32_t>& lsGroupId, uint32_t nLimited)
 {
   CDBManager* pDBManager = CDBManager::getInstance();
@@ -4904,7 +4918,7 @@ void CGroupModel::getUserGroupIds(uint32_t nUserId, list<uint32_t>& lsGroupId, u
   }
 }
 
-/* 获取群版本信息(群组表有群版本号字段,可更新群版本号) */
+/* 获取群版本信息 */
 void CGroupModel::getGroupVersion(list<uint32_t> &lsGroupId, list<IM::BaseDefine::GroupVersionInfo> &lsGroup, uint32_t nGroupType)
 {
   if(!lsGroupId.empty())
@@ -4927,6 +4941,8 @@ void CGroupModel::getGroupVersion(list<uint32_t> &lsGroupId, list<IM::BaseDefine
           strClause += ("," + int2string(*it));
         }
       }
+
+      //!    strSql = "select id,version from IMGroup where id in ( ??? ) and type= ? order by updated desc";
 
       string strSql = "select id,version from IMGroup where id in (" +  strClause  + ")";
       if(0 != nGroupType)
@@ -5043,7 +5059,7 @@ bool CGroupModel::hasModifyPermission(uint32_t nUserId, uint32_t nGroupId, IM::B
 /* 添加群成员 */
 bool CGroupModel::addMember(uint32_t nGroupId, set<uint32_t> &setUser, list<uint32_t>& lsCurUserId)
 {
-  // 去掉已经存在的用户ID
+  //! 去掉已经存在的用户ID
   removeRepeatUser(nGroupId, setUser);
   bool bRet = insertNewMember(nGroupId, setUser);
   getGroupUser(nGroupId,lsCurUserId);
@@ -5079,10 +5095,11 @@ bool CGroupModel::removeMember(uint32_t nGroupId, set<uint32_t> &setUser, list<u
           strClause += ("," + int2string(*it));
         }
       }
+      //! 否退出群，0-正常，1-已退出
       string strSql = "update IMGroupMember set status=1 where  groupId =" + int2string(nGroupId) + " and userId in(" + strClause + ")";
       pDBConn->ExecuteUpdate(strSql.c_str());
 
-      //从redis中删除成员
+      //! 从redis中删除成员
       string strKey = "group_member_"+ int2string(nGroupId);
       for (auto it=setUser.begin(); it!=setUser.end(); ++it) {
         string strField = int2string(*it);
@@ -5098,6 +5115,7 @@ bool CGroupModel::removeMember(uint32_t nGroupId, set<uint32_t> &setUser, list<u
     pDBManager->RelDBConn(pDBConn);
     if (bRet)
     {
+      //! 从redis中获取当前群用户id
       getGroupUser(nGroupId,lsCurUserId);
     }
   }
@@ -5136,7 +5154,7 @@ void CGroupModel::removeRepeatUser(uint32_t nGroupId, set<uint32_t> &setUser)
   }
 }
 
-/* 设置推送状态,屏蔽或者取消屏蔽 */
+/* 设置群消息推送状态,屏蔽或者取消屏蔽 */
 bool CGroupModel::setPush(uint32_t nUserId, uint32_t nGroupId, uint32_t nType, uint32_t nStatus)
 {
   bool bRet = false;
@@ -5224,7 +5242,8 @@ void CGroupModel::getGroupUser(uint32_t nGroupId, list<uint32_t> &lsUserId)
     pCacheManager->RelCacheConn(pCacheConn);
     if(bRet)
     {
-      for (auto it=mapAllUser.begin(); it!=mapAllUser.end(); ++it) {
+      for (auto it=mapAllUser.begin(); it!=mapAllUser.end(); ++it)
+      {
         uint32_t nUserId = string2int(it->first);
         lsUserId.push_back(nUserId);
       }
@@ -5240,7 +5259,7 @@ void CGroupModel::getGroupUser(uint32_t nGroupId, list<uint32_t> &lsUserId)
   }
 }
 
-/* 更新群聊天最新时间 */
+/* 更新群最后聊天时间 */
 void CGroupModel::updateGroupChat(uint32_t nGroupId)
 {
   CDBManager* pDBManager = CDBManager::getInstance();
@@ -5281,7 +5300,7 @@ void CGroupModel::updateGroupChat(uint32_t nGroupId)
 //    return bRet;
 //}
 
-/* 群是否存在 */
+/* 群是否有效 */
 bool CGroupModel::isValidateGroupId(uint32_t nGroupId)
 {
   bool bRet = false;
@@ -5381,6 +5400,7 @@ void CGroupModel::clearGroupMember(uint32_t nGroupId)
   {
     log("no db connection for teamtalk_master");
   }
+
   CacheManager* pCacheManager = CacheManager::getInstance();
   CacheConn* pCacheConn = pCacheManager->GetCacheConn("group_member");
   if(pCacheConn)
@@ -5490,7 +5510,6 @@ void createGroup(CImPdu* pPdu, uint32_t conn_uuid)
         msgResp.set_result_code(1);
       }
 
-
       log("createGroup.%d create %s, userCnt=%u, result:%d", nUserId, strGroupName.c_str(), setMember.size(), msgResp.result_code());
 
       msgResp.set_attach_data(msg.attach_data());
@@ -5584,7 +5603,7 @@ void getGroupInfo(CImPdu* pPdu, uint32_t conn_uuid)
     for(auto it=lsGroupInfo.begin(); it!=lsGroupInfo.end(); ++it)
     {
       IM::BaseDefine::GroupInfo* pGroupInfo = msgResp.add_group_info_list();
-      //            *pGroupInfo = *it;
+      //! *pGroupInfo = *it;
       pGroupInfo->set_group_id(it->group_id());
       pGroupInfo->set_version(it->version());
       pGroupInfo->set_group_name(it->group_name());
@@ -5628,9 +5647,8 @@ void modifyMember(CImPdu* pPdu, uint32_t conn_uuid)
     uint32_t nUserId = msg.user_id();
     uint32_t nGroupId = msg.group_id();
     IM::BaseDefine::GroupModifyType nType = msg.change_type();
-    if (IM::BaseDefine::GroupModifyType_IsValid(nType) &&
-        CGroupModel::getInstance()->isValidateGroupId(nGroupId)) {
-
+    if (IM::BaseDefine::GroupModifyType_IsValid(nType) && CGroupModel::getInstance()->isValidateGroupId(nGroupId))
+    {
       CImPdu* pPduRes = new CImPdu;
 
       uint32_t nCnt = msg.member_id_list_size();
@@ -5750,7 +5768,7 @@ void getGroupPush(CImPdu* pPdu, uint32_t conn_uuid)
       msgResp.set_group_id(nGroupId);
       for (auto it=lsPush.begin(); it!=lsPush.end(); ++it) {
         IM::BaseDefine::ShieldStatus* pStatus = msgResp.add_shield_status_list();
-        //            *pStatus = *it;
+        // *pStatus = *it;
         pStatus->set_user_id(it->user_id());
         pStatus->set_group_id(it->group_id());
         pStatus->set_shield_status(it->shield_status());
@@ -5789,8 +5807,8 @@ void getGroupPush(CImPdu* pPdu, uint32_t conn_uuid)
  * getSessionId 获取用户与其他用户会话接口的id.
  * updateSession 根据id更新会话接口的会话时间.
  * removeSession 根据id删除会话接口.(实际只是更新了会话状态).
- * addSession 插入新的会话接口(如果之前已经删除该会话,重新更新该会话id状态).
- * fillSessionMsg 在用户所有的会话接口中填充聊天内容.
+ * addSession 插入新的会话接口(如果之前已经删除该会话,更新该会话状态).
+ * fillSessionMsg 在用户会话接口中填充最新一条聊天内容
  */
 class CSessionModel
 {
@@ -5837,6 +5855,8 @@ void CSessionModel::getRecentSession(uint32_t nUserId, uint32_t lastTime, list<I
   CDBConn* pDBConn = pDBManager->GetDBConn("teamtalk_slave");
   if (pDBConn)
   {
+    //! status 状态  用户:0-正常, 1-被删除, 群组:0-正常, 1-被删除
+    //! type   类型  1-用户,2-群组
     string strSql = "select * from IMRecentSession where userId = " + int2string(nUserId) + " and status = 0 and updated >" + int2string(lastTime) + " order by updated desc limit 100";
 
     CResultSet* pResultSet = pDBConn->ExecuteQuery(strSql.c_str());
@@ -5932,7 +5952,7 @@ bool CSessionModel::updateSession(uint32_t nSessionId, uint32_t nUpdateTime)
   return bRet;
 }
 
-/* 根据id删除会话接口.(实际只是更新了会话状态). */
+/* 根据id删除会话接口(实际只是更新了会话状态). */
 bool CSessionModel::removeSession(uint32_t nSessionId)
 {
   bool bRet = false;
@@ -5952,7 +5972,7 @@ bool CSessionModel::removeSession(uint32_t nSessionId)
   return bRet;
 }
 
-/* 插入新的会话接口(如果之前已经删除该会话,重新更新该会话id状态). */
+/* 插入新的会话接口(如果之前已经删除该会话,更新该会话状态). */
 uint32_t CSessionModel::addSession(uint32_t nUserId, uint32_t nPeerId, uint32_t nType)
 {
   uint32_t nSessionId = INVALID_VALUE;
@@ -6009,7 +6029,7 @@ uint32_t CSessionModel::addSession(uint32_t nUserId, uint32_t nPeerId, uint32_t 
   return nSessionId;
 }
 
-/* 在用户所有的会话接口中填充聊天内容. */
+/* 在用户会话接口中填充最新一条聊天内容. */
 void CSessionModel::fillSessionMsg(uint32_t nUserId, list<IM::BaseDefine::ContactSessionInfo>& lsContact)
 {
   for (auto it=lsContact.begin(); it!=lsContact.end();)
@@ -6027,6 +6047,7 @@ void CSessionModel::fillSessionMsg(uint32_t nUserId, list<IM::BaseDefine::Contac
     {
       CGroupMessageModel::getInstance()->getLastMsg(it->session_id(), nMsgId, strMsgData, nMsgType, nFromId);
     }
+
     if(!IM::BaseDefine::MsgType_IsValid(nMsgType))
     {
       it = lsContact.erase(it);
@@ -6099,8 +6120,8 @@ void getRecentSession(CImPdu* pPdu, uint32_t conn_uuid)
       IM::BaseDefine::ContactSessionInfo* pContact = msgResp.add_contact_session_list();
       //*pContact = *it;
       pContact->set_session_id(it->session_id());
-      pContact->set_session_type(it->session_type());
-      pContact->set_session_status(it->session_status());
+      pContact->set_session_type(it->session_type());     //! 类型，1-用户,2-群组
+      pContact->set_session_status(it->session_status()); //! 用户:0-正常, 1-被删除,群组:0-正常, 1-被删除
       pContact->set_updated_time(it->updated_time());
       pContact->set_latest_msg_id(it->latest_msg_id());
       pContact->set_latest_msg_data(it->latest_msg_data());
@@ -6210,12 +6231,12 @@ private:
   uint32_t addRelation(uint32_t nSmallId, uint32_t nBigId);
 
 private:
-  static CRelationModel*	m_pInstance;
+  static CRelationModel* m_pInstance;
 };
 
 #endif
 
-/* db_proxy_server - business - RelationModel.h */
+/* db_proxy_server - business - RelationModel.cpp */
 #include <vector>
 #include "../DBPool.h"
 #include "RelationModel.h"
@@ -6338,6 +6359,7 @@ uint32_t CRelationModel::addRelation(uint32_t nSmallId, uint32_t nBigId)
           log("insert message failed. %s", strSql.c_str());
         }
       }
+
       if(nRelationId != INVALID_VALUE)
       {
         // 初始化msgId
@@ -6444,7 +6466,7 @@ private:
   CMessageModel();
   void incMsgCount(uint32_t nFromId, uint32_t nToId);
 private:
-  static CMessageModel*	m_pInstance;
+  static CMessageModel* m_pInstance;
 };
 
 #endif /* MESSAGE_MODEL_H_ */
@@ -6907,7 +6929,7 @@ private:
   bool incMessageCount(uint32_t nUserId, uint32_t nGroupId);
 
 private:
-  static CGroupMessageModel*	m_pInstance;
+  static CGroupMessageModel* m_pInstance;
 };
 
 #endif /* MESSAGE_MODEL_H_ */
@@ -7577,7 +7599,6 @@ void getUnreadMsgCounter(CImPdu* pPdu, uint32_t conn_uuid)
       pInfo->set_latest_msg_type(it->latest_msg_type());
       pInfo->set_latest_msg_from_user_id(it->latest_msg_from_user_id());
     }
-
 
     log("userId=%d, unreadCnt=%u, totalCount=%u", nUserId, msgResp.unreadinfo_list_size(), nTotalCnt);
     msgResp.set_attach_data(msg.attach_data());
