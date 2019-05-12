@@ -2408,7 +2408,7 @@ CProxyConn* get_proxy_conn_by_uuid(uint32_t uuid)
 
 //////////////////////////
 /* m_uuid 是为了区分不同的工作线程 */
-/* CProxyConn()构造连接对象,m_uuid标识是连接次序.
+/* CProxyConn()构造连接对象,m_uuid是连接次序.
  */
 CProxyConn::CProxyConn()
 {
@@ -2430,7 +2430,6 @@ void CProxyConn::Close()
   if (m_handle != NETLIB_INVALID_HANDLE) {
     netlib_close(m_handle);
     g_proxy_conn_map.erase(m_handle);
-
     g_uuid_conn_map.erase(m_uuid);
   }
 
@@ -2439,6 +2438,7 @@ void CProxyConn::Close()
 
 /* 将其他服务器与db_proxy_server的连接保存在g_proxy_conn_map中,
  * netlib_option 设置连接套接字handle的属性. 
+ * 外部客户端连接本服务端成功后,回调函数换成了imconn_callback
  */
 void CProxyConn::OnConnect(net_handle_t handle)
 {
@@ -2837,7 +2837,7 @@ void CSyncCenter::updateLastUpdateGroup(uint32_t nUpdated)
 }
 
 /**
- *  同步群组聊天信息
+ *  同步群组聊天信息(同步最新会话时间)
  *
  *  @param arg NULL
  *
@@ -2874,6 +2874,7 @@ void* CSyncCenter::doSyncGroupChat(void* arg)
     {
       log("no db connection for teamtalk_slave");
     }
+
     m_pInstance->updateLastUpdateGroup(time(NULL));
     for (auto it=mapChangedGroup.begin(); it!=mapChangedGroup.end(); ++it)
     {
@@ -2896,9 +2897,12 @@ void* CSyncCenter::doSyncGroupChat(void* arg)
         }
       }
     }
-    // while (!m_pInstance->m_pCondSync->waitTime(5*1000));
+    //! WaitTime ms
+    //! if recv a signal then return true;
+    //! else return false;
   } while (m_pInstance->m_bSyncGroupChatWaitting && !(m_pInstance->m_pCondGroupChat->waitTime(5*1000)));
-  // while(m_pInstance->m_bSyncGroupChatWaitting);
+  //! while (!m_pInstance->m_pCondSync->waitTime(5*1000));
+  //! while(m_pInstance->m_bSyncGroupChatWaitting);
   m_bSyncGroupChatRuning = false;
   return NULL;
 }
@@ -3397,7 +3401,7 @@ public:
 
 private:
   CAudioModel();
-  //void GetAudiosInfo(uint32_t nAudioId, IM::BaseDefine::MsgInfo& msg);
+  //! void GetAudiosInfo(uint32_t nAudioId, IM::BaseDefine::MsgInfo& msg);
   bool readAudioContent(uint32_t nCostTime, uint32_t nSize, const string& strPath, IM::BaseDefine::MsgInfo& msg);
 
 private:
@@ -3463,6 +3467,7 @@ void CAudioModel::setUrl(string& strFileSite)
 
 /**
  *  读取语音消息
+ *  lsMsg是输入输出参数: 通过lsMsg的id获取语音消息内容,写入到lsMsg内
  *
  *  @param nAudioId 语音的Id
  *  @param cMsg     语音消息，引用
@@ -3475,6 +3480,7 @@ bool CAudioModel::readAudios(list<IM::BaseDefine::MsgInfo>& lsMsg)
   {
     return true;
   }
+
   bool bRet = false;
   CDBManager* pDBManger = CDBManager::getInstance();
   CDBConn* pDBConn = pDBManger->GetDBConn("teamtalk_slave");
@@ -3532,7 +3538,7 @@ bool CAudioModel::readAudios(list<IM::BaseDefine::MsgInfo>& lsMsg)
  */
 int CAudioModel::saveAudioInfo(uint32_t nFromId, uint32_t nToId, uint32_t nCreateTime, const char* pAudioData, uint32_t nAudioLen)
 {
-  // parse audio data
+  //! parse audio data
   uint32_t nCostTime = CByteStream::ReadUint32((uchar_t*)pAudioData);
   uchar_t* pRealData = (uchar_t*)pAudioData + 4;
   uint32_t nRealLen = nAudioLen - 4;
@@ -3593,7 +3599,7 @@ bool CAudioModel::readAudioContent(uint32_t nCostTime, uint32_t nSize, const str
     return false;
   }
 
-  // 分配内存，写入音频时长
+  //! 分配内存，写入音频时长
   AudioMsgInfo cAudioMsg;
   uchar_t* pData = new uchar_t [4 + nSize];
   cAudioMsg.data = pData;
@@ -3601,7 +3607,7 @@ bool CAudioModel::readAudioContent(uint32_t nCostTime, uint32_t nSize, const str
   cAudioMsg.data_len = 4;
   cAudioMsg.fileSize = nSize;
 
-  // 获取音频数据，写入内存cAudioMsg
+  //! 获取音频数据，写入内存cAudioMsg
   CHttpClient httpClient;
   if(!httpClient.DownloadByteFile(strPath, &cAudioMsg))
   {
@@ -3690,7 +3696,8 @@ CUserModel* CUserModel::getInstance()
   return m_pInstance;
 }
 
-/* 获取信息变更的用户id(多个). */
+/* 获取信息变更的用户id(多个). 
+ * nLastTime是输入输出参数,输入更新期限,返回最新时间 */
 void CUserModel::getChangedId(uint32_t& nLastTime, list<uint32_t> &lsIds)
 {
   CDBManager* pDBManager = CDBManager::getInstance();
@@ -3700,7 +3707,7 @@ void CUserModel::getChangedId(uint32_t& nLastTime, list<uint32_t> &lsIds)
     string strSql ;
     if(nLastTime == 0)
     {
-      strSql = "select id, updated from IMUser where status != 3"; //! 1. 试用期 2. 正式 3. 离职 4.实习
+      strSql = "select id, updated from IMUser where status != 3"; //! status 1. 试用期 2. 正式 3. 离职 4.实习
     }
     else
     {
@@ -3860,7 +3867,7 @@ bool CUserModel::updateUser(DBUserInfo_t &cUser)
   return bRet;
 }
 
-/* 插入一条用户数据. */
+/* IMUser表插入一条用户数据. */
 bool CUserModel::insertUser(DBUserInfo_t &cUser)
 {
   bool bRet = false;
@@ -4007,6 +4014,7 @@ bool CUserModel::updateUserSignInfo(uint32_t user_id, const string& sign_info)
     log("updateUserSignInfo: sign_info.length()>128.\n");
     return false;
   }
+
   bool rv = false;
   CDBManager* db_manager = CDBManager::getInstance();
   CDBConn* db_conn = db_manager->GetDBConn("teamtalk_master");
@@ -4017,7 +4025,7 @@ bool CUserModel::updateUserSignInfo(uint32_t user_id, const string& sign_info)
     if(!rv) {
       log("updateUserSignInfo: update failed:%s", str_sql.c_str());
     }else{
-      CSyncCenter::getInstance()->updateTotalUpdate(now);
+      CSyncCenter::getInstance()->updateTotalUpdate(now); //! 同步更新内网时间
     }
 
     db_manager->RelDBConn(db_conn);
@@ -4052,7 +4060,7 @@ bool CUserModel::getUserSingInfo(uint32_t user_id, string* sign_info)
   return rv;
 }
 
-/* 设置消息推送屏蔽. */
+/* 设置消息推送屏蔽. 0关闭勿扰 1开启勿扰 */
 bool CUserModel::updatePushShield(uint32_t user_id, uint32_t shield_status)
 {
   bool rv = false;
@@ -4074,7 +4082,7 @@ bool CUserModel::updatePushShield(uint32_t user_id, uint32_t shield_status)
   return rv;
 }
 
-/* 获取消息推送屏蔽状态. */
+/* 获取消息推送屏蔽状态. 0关闭勿扰 1开启勿扰 */
 bool CUserModel::getPushShield(uint32_t user_id, uint32_t* shield_status)
 {
   bool rv = false;
@@ -4503,19 +4511,19 @@ uint32_t CGroupModel::createGroup(uint32_t nUserId, const string& strGroupName, 
     if (setMember.empty()) {
       break;
     }
-    //! remove repeat user
 
     //! insert IMGroup
     if(!insertNewGroup(nUserId, strGroupName, strGroupAvatar, nGroupType, (uint32_t)setMember.size(), nGroupId)) {
       break;
     }
+
     bool bRet = CGroupMessageModel::getInstance()->resetMsgId(nGroupId); //! Redis保存群组nGroupId [group_msg_id_XXX,"0"]
     if(!bRet)
     {
       log("reset msgId failed. groupId=%u", nGroupId);
     }
 
-    //insert IMGroupMember
+    //! insert IMGroupMember
     clearGroupMember(nGroupId);
     insertNewMember(nGroupId, setMember);
 
@@ -4678,7 +4686,7 @@ bool CGroupModel::modifyGroupMember(uint32_t nUserId, uint32_t nGroupId, IM::Bas
         break;
     }
 
-    //if modify group member success, need to inc the group version and clear the user count;
+    //! if modify group member success, need to inc the group version and clear the user count;
     if(bRet)
     {
       incGroupVersion(nGroupId);
@@ -5059,7 +5067,7 @@ bool CGroupModel::hasModifyPermission(uint32_t nUserId, uint32_t nGroupId, IM::B
 /* 添加群成员 */
 bool CGroupModel::addMember(uint32_t nGroupId, set<uint32_t> &setUser, list<uint32_t>& lsCurUserId)
 {
-  //! 去掉已经存在的用户ID
+  //! 去掉setUser中已经存在的用户ID
   removeRepeatUser(nGroupId, setUser);
   bool bRet = insertNewMember(nGroupId, setUser);
   getGroupUser(nGroupId,lsCurUserId);
@@ -5712,7 +5720,6 @@ void setGroupPush(CImPdu* pPdu, uint32_t conn_uuid)
     uint32_t nStatus = msg.shield_status();
     if(CGroupModel::getInstance()->isValidateGroupId(nGroupId))
     {
-
       CImPdu* pPduRes = new CImPdu;
       bool bRet = CGroupModel::getInstance()->setPush(nUserId, nGroupId, IM_GROUP_SETTING_PUSH, nStatus);
 
@@ -5855,7 +5862,7 @@ void CSessionModel::getRecentSession(uint32_t nUserId, uint32_t lastTime, list<I
   CDBConn* pDBConn = pDBManager->GetDBConn("teamtalk_slave");
   if (pDBConn)
   {
-    //! status 状态  用户:0-正常, 1-被删除, 群组:0-正常, 1-被删除
+    //! status 状态  用户:0-正常, 1-被用户A删除, 群组:0-正常, 1-被删除
     //! type   类型  1-用户,2-群组
     string strSql = "select * from IMRecentSession where userId = " + int2string(nUserId) + " and status = 0 and updated >" + int2string(lastTime) + " order by updated desc limit 100";
 
@@ -6212,10 +6219,10 @@ void deleteRecentSession(CImPdu* pPdu, uint32_t conn_uuid)
 
 using namespace std;
 
-/* getRelationId 获取用户关系id. (即用户与用户之间的会话关系, 用户与群组之间的会话关系)
- * updateRelation 更新用户关系.
- * removeRelation 删除用户关系.
- * addRelation 添加用户关系.
+/* getRelationId 获取用户(会话)关系id. (关系id可以%8取余,分表IMGroupMessage_x)
+ * updateRelation 更新用户(会话)关系.
+ * removeRelation 删除用户(会话)关系.
+ * addRelation 添加用户(会话)关系.
  */
 class CRelationModel {
 public:
@@ -6265,8 +6272,8 @@ CRelationModel* CRelationModel::getInstance()
   return m_pInstance;
 }
 
-/* 获取用户关系id. (即用户与用户之间的关系, 用户与群组之间的关系)
- * 如果查询不到该id, 则说明该关系是新增的,调用addRelation添加用户关系
+/* 获取用户(会话)关系id.
+ * 如果查询不到该id, 则说明该关系是新增的,调用addRelation添加用户(会话)关系
  */
 uint32_t CRelationModel::getRelationId(uint32_t nUserAId, uint32_t nUserBId, bool bAdd)
 {
@@ -6311,7 +6318,7 @@ uint32_t CRelationModel::getRelationId(uint32_t nUserAId, uint32_t nUserBId, boo
 
 /* 添加用户关系.
  * 如果sql语句能查询到该会话id记录,则更新该记录status状态
- * 否则插入一条新记录,表示增加新的关系记录.
+ * 否则IMRelationShip插入一条新记录,表示增加新的关系记录.
  */
 uint32_t CRelationModel::addRelation(uint32_t nSmallId, uint32_t nBigId)
 {
@@ -6362,7 +6369,7 @@ uint32_t CRelationModel::addRelation(uint32_t nSmallId, uint32_t nBigId)
 
       if(nRelationId != INVALID_VALUE)
       {
-        // 初始化msgId
+        //! 保存关系id
         if(!CMessageModel::getInstance()->resetMsgId(nRelationId))
         {
           log("reset msgId failed. smallId=%u, bigId=%u.", nSmallId, nBigId);
@@ -6430,7 +6437,7 @@ bool CRelationModel::removeRelation(uint32_t nRelationId)
 #include "IM.BaseDefine.pb.h"
 using namespace std;
 
-/* @param IMMessage_x 消息表, x是分表的序号,记录用户发送的每条消息,每条消息都有唯一的消息id,消息id的自增长的.
+/* @param IMMessage_x 消息表, x是分表的序号,记录用户发送的消息.
  * @param nRelateId 用户关系id, 作用:确认用户与用户之间, 用户与群组之间的唯一关系. nRelateId%8 用于消息表分表.
  * @param nMsgId 消息id, 作用:每发送一条消息都会在消息表产生一条消息记录
  *
@@ -6443,7 +6450,7 @@ using namespace std;
  * getLastMsg 获取最近一条消息.
  * getUnReadCntAll 获取未读消息总数.
  * getMsgByMsgId 通过消息id(多条)获取消息(多条)
- * resetMsgId 重置消息id
+ * resetMsgId 重置会话关系id
  */
 class CMessageModel {
 public:
@@ -6551,6 +6558,7 @@ void CMessageModel::getMessage(uint32_t nUserId, uint32_t nPeerId, uint32_t nMsg
       {
         log("no result set: %s", strSql.c_str());
       }
+
       pDBManager->RelDBConn(pDBConn);
       if (!lsMsg.empty())
       {
@@ -6662,6 +6670,10 @@ void CMessageModel::getUnreadMsgCount(uint32_t nUserId, uint32_t &nTotalCnt, lis
   CacheConn* pCacheConn = pCacheManager->GetCacheConn("unread");
   if (pCacheConn)
   {
+    //! key:   unread_nToId,
+    //! filed: fromId,
+    //! value: count
+
     map<string, string> mapUnread;
     string strKey = "unread_" + int2string(nUserId);
     bool bRet = pCacheConn->hgetAll(strKey, mapUnread);
@@ -6703,7 +6715,7 @@ void CMessageModel::getUnreadMsgCount(uint32_t nUserId, uint32_t &nTotalCnt, lis
   }
 }
 
-/* 获取消息id. */
+/* 获取一个msgId，自增，通过redis控制 */
 uint32_t CMessageModel::getMsgId(uint32_t nRelateId)
 {
   uint32_t nMsgId = 0;
@@ -6873,7 +6885,7 @@ void CMessageModel::getMsgByMsgId(uint32_t nUserId, uint32_t nPeerId, const list
   }
 }
 
-/* 重置消息id */
+/* 重置会话关系id */
 bool CMessageModel::resetMsgId(uint32_t nRelateId)
 {
   bool bRet = false;
@@ -7005,7 +7017,7 @@ bool CGroupMessageModel::sendMessage(uint32_t nFromId, uint32_t nGroupId, IM::Ba
     if (pDBConn)
     {
       string strTableName = "IMGroupMessage_" + int2string(nGroupId % 8);
-      string strSql = "insert into " + strTableName + " (`groupId`, `userId`, `msgId`, `content`, `type`, `status`, `updated`, `created`) "\
+      string strSql = "insert into " + strTableName + " (`groupId`, `userId`, `msgId`, `content`, `type`, `status`, `updated`, `created`) "
                        "values(?, ?, ?, ?, ?, ?, ?, ?)";
 
       // 必须在释放连接前delete CPrepareStatement对象，否则有可能多个线程操作mysql对象，会crash
@@ -7197,7 +7209,7 @@ void CGroupMessageModel::getMessage(uint32_t nUserId, uint32_t nGroupId, uint32_
   if (pDBConn)
   {
     uint32_t nUpdated = CGroupModel::getInstance()->getUserJoinTime(nGroupId, nUserId);
-    //如果nMsgId 为0 表示客户端想拉取最新的nMsgCnt条消息
+    //! 如果nMsgId为0 表示客户端想拉取最新的nMsgCnt条消息
     string strSql;
     if(nMsgId == 0)
     {
@@ -7269,7 +7281,7 @@ void CGroupMessageModel::getUnreadMsgCount(uint32_t nUserId, uint32_t &nTotalCnt
       string strGroupCnt = pCacheConn->hget(strGroupKey, GROUP_COUNTER_SUBKEY_COUNTER_FIELD);
       if(strGroupCnt.empty())
       {
-        //                log("hget %s : count failed !", strGroupKey.c_str());
+        //! log("hget %s : count failed !", strGroupKey.c_str());
         continue;
       }
       uint32_t nGroupCnt = (uint32_t)(atoi(strGroupCnt.c_str()));
@@ -7413,7 +7425,7 @@ void CGroupMessageModel::getUnReadCntAll(uint32_t nUserId, uint32_t &nTotalCnt)
       string strGroupCnt = pCacheConn->hget(strGroupKey, GROUP_COUNTER_SUBKEY_COUNTER_FIELD);
       if(strGroupCnt.empty())
       {
-        //                log("hget %s : count failed !", strGroupKey.c_str());
+        // log("hget %s : count failed !", strGroupKey.c_str());
         continue;
       }
       uint32_t nGroupCnt = (uint32_t)(atoi(strGroupCnt.c_str()));
